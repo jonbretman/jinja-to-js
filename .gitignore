@@ -1,0 +1,10 @@
+*.pyc
+*~
+dist
+build/
+*.egg
+jinja_to_js.egg-info/
+.DS_Store
+.coverage
+.tox
+.idea
