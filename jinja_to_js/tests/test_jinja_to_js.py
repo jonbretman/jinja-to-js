@@ -17,11 +17,23 @@ class Tests(unittest.TestCase):
 
     def _run_test(self, name):
         equal(compile_template(self.env, self.loader, '%s.jinja' % name),
-              open(self._template_path('%s_expected.html' % name)).read().strip())
+              open(self._template_path('%s.html' % name)).read().strip())
 
     def setUp(self):
         self.env = Environment()
         self.loader = FileSystemLoader(self._template_path())
 
-    def test_compile_template(self):
-        self._run_test('simple')
+    def test_if(self):
+        self._run_test('if')
+
+    def test_if_else(self):
+        self._run_test('if_else')
+
+    def test_if_else_if(self):
+        self._run_test('if_else_if')
+
+    def test_interpolation(self):
+        self._run_test('interpolation')
+
+    def test_iteration(self):
+        self._run_test('iteration')

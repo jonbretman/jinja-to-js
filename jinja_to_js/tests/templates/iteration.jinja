@@ -1,0 +1,19 @@
+{% for key, value in keyvaluething.items() %}
+    {{ key }} {{ value }}
+{% endfor %}
+
+{% for key, value in keyvaluething.iteritems() %}
+    {{ key }} {{ value }}
+{% endfor %}
+
+{% for value in values %}
+    {{ value }}
+{% endfor %}
+
+{% for value in keyvaluething.values() %}
+    {{ value }}
+{% endfor %}
+
+{% for key in foo.bar.bop.keys() %}
+    {{ key }}
+{% endfor %}

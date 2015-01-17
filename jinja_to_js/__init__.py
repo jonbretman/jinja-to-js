@@ -2,6 +2,7 @@ import contextlib
 
 from cStringIO import StringIO
 from jinja2 import nodes
+from jinja2.nodes import Call, Getattr
 
 
 def compile_template(env, loader, template_name):
@@ -30,6 +31,8 @@ FUNCTION = 'function'
 PAREN_START = ' ('
 PAREN_END = ') '
 EACH_START = '_.each('
+VALUES_START = '_.values('
+KEYS_START = '_.keys('
 EACH_END = '});'
 IF = 'if'
 ELSE = ' else '
@@ -52,6 +55,21 @@ def option(kwargs, key, value):
         yield
     finally:
         kwargs[key] = old_value
+
+
+def is_method_call(node, method_name):
+    if not isinstance(node, Call):
+        return False
+
+    if not isinstance(node.node, Getattr):
+        return False
+
+    method = node.node.attr
+
+    if isinstance(method_name, (list, tuple)):
+        return method in method_name
+
+    return method == method_name
 
 
 class Compiler(object):
@@ -113,7 +131,12 @@ class Compiler(object):
         previous_stored_names = self.stored_names.copy()
 
         self.output.write(EXECUTE_START)
-        self.output.write(EACH_START)
+        if is_method_call(node.iter, 'values'):
+            self.output.write(VALUES_START)
+        elif is_method_call(node.iter, 'keys'):
+            self.output.write(KEYS_START)
+        else:
+            self.output.write(EACH_START)
 
         with option(kwargs, OPTION_INSIDE_BLOCK, True):
             self._process_node(node.iter, **kwargs)
@@ -206,7 +229,7 @@ class Compiler(object):
         self._process_node(node.items[0], **kwargs)
 
     def _process_call(self, node, **kwargs):
-        if isinstance(node.node, nodes.Getattr) and node.node.attr == 'iteritems':
+        if is_method_call(node, ('iteritems', 'items', 'values', 'keys')):
             self._process_node(node.node.node, **kwargs)
 
         print 'Usage of call %s' % node
@@ -244,19 +267,7 @@ class Compiler(object):
             raise Exception('Unknown Const type %s' % type(node.value))
 
     def _process_include(self, node, **kwargs):
-        template_string, _, _ = env.loader.get_source(env, node.template.value)
-
-        # parse the template to get the ast
-        parsed = env.parse(template_string)
-
-        # the template has defined a 'component_root' block
-        # then just output the contents of that block
-        first_block = parsed.find(nodes.Block)
-        if first_block and first_block.name == 'component_root':
-            parsed = first_block
-
-        for node in parsed.body:
-            self._process_node(node, **kwargs)
+        raise NotImplemented()
 
     def _process_block(self, node, **_):
         pass
