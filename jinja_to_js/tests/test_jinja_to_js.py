@@ -20,7 +20,7 @@ class Tests(unittest.TestCase):
               open(self._template_path('%s.html' % name)).read().strip())
 
     def setUp(self):
-        self.env = Environment()
+        self.env = Environment(extensions=['jinja2.ext.with_'])
         self.loader = FileSystemLoader(self._template_path())
 
     def test_if(self):
@@ -35,5 +35,20 @@ class Tests(unittest.TestCase):
     def test_interpolation(self):
         self._run_test('interpolation')
 
-    def test_iteration(self):
-        self._run_test('iteration')
+    def test_iteration_iteritems(self):
+        self._run_test('iteration_iteritems')
+
+    def test_iteration_items(self):
+        self._run_test('iteration_items')
+
+    def test_iteration_values(self):
+        self._run_test('iteration_values')
+
+    def test_iteration_list(self):
+        self._run_test('iteration_list')
+
+    def test_iteration_keys(self):
+        self._run_test('iteration_keys')
+
+    def test_with(self):
+        self._run_test('with')

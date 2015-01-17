@@ -28,17 +28,21 @@ BLOCK_OPEN = '{'
 BLOCK_CLOSE = '}'
 COMMA = ', '
 FUNCTION = 'function'
+IIFE_START = '(function () {'
+IIFE_END = '})();'
 PAREN_START = ' ('
 PAREN_END = ') '
 EACH_START = '_.each('
-VALUES_START = '_.values('
 KEYS_START = '_.keys('
 EACH_END = '});'
+VAR = 'var '
+TERMINATOR = ';'
 IF = 'if'
 ELSE = ' else '
 NOT = '!'
 OR = ' || '
 AND = ' && '
+ASSIGN = ' = '
 OPERANDS = {
     'eq': ' === ',
     'ne': ' !== ',
@@ -131,9 +135,8 @@ class Compiler(object):
         previous_stored_names = self.stored_names.copy()
 
         self.output.write(EXECUTE_START)
-        if is_method_call(node.iter, 'values'):
-            self.output.write(VALUES_START)
-        elif is_method_call(node.iter, 'keys'):
+
+        if is_method_call(node.iter, 'keys'):
             self.output.write(KEYS_START)
         else:
             self.output.write(EACH_START)
@@ -231,16 +234,37 @@ class Compiler(object):
     def _process_call(self, node, **kwargs):
         if is_method_call(node, ('iteritems', 'items', 'values', 'keys')):
             self._process_node(node.node.node, **kwargs)
-
-        print 'Usage of call %s' % node
+        else:
+            print 'Usage of call with unknown method %s: %s' % (node.node.attr, node)
 
     def _process_filter(self, node, **kwargs):
         self._process_node(node.node, **kwargs)
         print 'Usage of filter: %s' % node.name
 
-    def _process_ccope(self, node, **kwargs):
-        for n in node.body:
-            self._process_node(n, **kwargs)
+    def _process_scope(self, node, **kwargs):
+
+        assigns = [x for x in node.body if isinstance(x, nodes.Assign)]
+        node.body = [x for x in node.body if not isinstance(x, nodes.Assign)]
+
+        self.output.write(EXECUTE_START)
+        self.output.write(IIFE_START)
+
+        with option(kwargs, OPTION_INSIDE_BLOCK, True):
+            for assign in assigns:
+                self.output.write(VAR)
+                self._process_node(assign.target, **kwargs)
+                self.output.write(ASSIGN)
+                self._process_node(assign.node, **kwargs)
+                self.output.write(TERMINATOR)
+
+        self.output.write(EXECUTE_END)
+
+        for node in node.body:
+            self._process_node(node, **kwargs)
+
+        self.output.write(EXECUTE_START)
+        self.output.write(IIFE_END)
+        self.output.write(EXECUTE_END)
 
     def _process_compare(self, node, **kwargs):
         self._process_node(node.expr, **kwargs)
