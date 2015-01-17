@@ -12,7 +12,6 @@ from jinja_to_js import compile_template
 
 
 class Tests(unittest.TestCase):
-
     ROOT = abspath(join(dirname(__file__)))
     TEMPLATE_PATH = os.path.join(ROOT, 'templates')
     NODE_SCRIPT_PATH = os.path.join(ROOT, 'render_underscore_template.js')
@@ -26,13 +25,13 @@ class Tests(unittest.TestCase):
 
     def test_interpolation(self):
         self._run_test('interpolation',
-                          key='value',
-                          obj=dict(
-                              key='value',
-                              other_obj=dict(
-                                  key='value'
-                              )
-                          ))
+                       key='value',
+                       obj=dict(
+                           key='value',
+                           other_obj=dict(
+                               key='value'
+                           )
+                       ))
 
     def test_iteration_iteritems(self):
         self._run_test('iteration_iteritems', thing=dict(
@@ -73,7 +72,9 @@ class Tests(unittest.TestCase):
 
         # now create a temp file containing the compiled underscore template
         underscore_file, underscore_file_path = tempfile.mkstemp()
-        os.fdopen(underscore_file, 'w').write(compile_template(self.env, self.loader, '%s.jinja' % name))
+        os.fdopen(underscore_file, 'w').write(
+            compile_template(self.env, self.loader, '%s.jinja' % name)
+        )
 
         # and another temp file containing the data
         data_file, data_file_path = tempfile.mkstemp()
