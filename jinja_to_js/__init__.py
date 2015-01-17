@@ -260,6 +260,21 @@ class Compiler(object):
         self._process_node(node.node, **kwargs)
         print 'Usage of filter: %s' % node.name
 
+    def _process_assign(self, node, **kwargs):
+        self.output.write(EXECUTE_START)
+        self.output.write(VAR)
+
+        with option(kwargs, OPTION_INSIDE_BLOCK, True):
+            self._process_node(node.target, **kwargs)
+
+        self.output.write(ASSIGN)
+
+        with option(kwargs, OPTION_INSIDE_BLOCK, True):
+            self._process_node(node.node, **kwargs)
+
+        self.output.write(TERMINATOR)
+        self.output.write(EXECUTE_END)
+
     def _process_scope(self, node, **kwargs):
 
         # keep a copy of the stored names before the scope
@@ -270,16 +285,10 @@ class Compiler(object):
 
         self.output.write(EXECUTE_START)
         self.output.write(IIFE_START)
-
-        with option(kwargs, OPTION_INSIDE_BLOCK, True):
-            for assign in assigns:
-                self.output.write(VAR)
-                self._process_node(assign.target, **kwargs)
-                self.output.write(ASSIGN)
-                self._process_node(assign.node, **kwargs)
-                self.output.write(TERMINATOR)
-
         self.output.write(EXECUTE_END)
+
+        for assign in assigns:
+            self._process_node(assign, **kwargs)
 
         for node in node.body:
             self._process_node(node, **kwargs)
@@ -308,6 +317,10 @@ class Compiler(object):
             self.output.write("'")
             self.output.write(str(node.value))
             self.output.write("'")
+
+        # important to check boolean before int as boolean values are instances of int
+        elif isinstance(node.value, bool):
+            self.output.write('true' if node.value else 'false')
 
         elif isinstance(node.value, int):
             self.output.write(str(node.value))
