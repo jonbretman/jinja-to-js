@@ -1,3 +1,19 @@
 {% if foo %}
-    <div></div>
+    <div>will not be output</div>
+{% endif %}
+
+{% if not foo %}
+    <p>will be output</p>
+{% endif %}
+
+{% if foo %}
+    <span>will not be output</span>
+{% else %}
+    <h1>will be output</h1>
+{% endif %}
+
+{% if foo %}
+    <h2>will not be output</h2>
+{% elif bar %}
+    <h3>will be output</h3>
 {% endif %}

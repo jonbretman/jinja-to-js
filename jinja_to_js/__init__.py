@@ -16,6 +16,16 @@ def compile_template(env, loader, template_name):
     return Compiler(parsed).get_output()
 
 
+def compile_str(env, template_str):
+    """
+    Compiles the template with the given name into an
+    Underscore template for use in the browser.
+    """
+
+    parsed = env.parse(template_str)
+    return Compiler(parsed).get_output()
+
+
 OPTION_INSIDE_IF = 'inside_if'
 OPTION_INSIDE_BLOCK = 'inside_block'
 
@@ -49,6 +59,13 @@ OPERANDS = {
     'lt': ' < ',
     'gt': ' > '
 }
+
+DICT_ITER_METHODS = (
+    dict.iteritems.__name__,
+    dict.items.__name__,
+    dict.values.__name__,
+    dict.keys.__name__
+)
 
 
 @contextlib.contextmanager
@@ -135,14 +152,16 @@ class Compiler(object):
         previous_stored_names = self.stored_names.copy()
 
         self.output.write(EXECUTE_START)
+        self.output.write(EACH_START)
 
-        if is_method_call(node.iter, 'keys'):
+        if is_method_call(node.iter, dict.keys.__name__):
             self.output.write(KEYS_START)
-        else:
-            self.output.write(EACH_START)
 
         with option(kwargs, OPTION_INSIDE_BLOCK, True):
             self._process_node(node.iter, **kwargs)
+
+        if is_method_call(node.iter, dict.keys.__name__):
+            self.output.write(PAREN_END)
 
         self.output.write(COMMA)
         self.output.write(FUNCTION)
@@ -232,7 +251,7 @@ class Compiler(object):
         self._process_node(node.items[0], **kwargs)
 
     def _process_call(self, node, **kwargs):
-        if is_method_call(node, ('iteritems', 'items', 'values', 'keys')):
+        if is_method_call(node, DICT_ITER_METHODS):
             self._process_node(node.node.node, **kwargs)
         else:
             print 'Usage of call with unknown method %s: %s' % (node.node.attr, node)
@@ -242,6 +261,9 @@ class Compiler(object):
         print 'Usage of filter: %s' % node.name
 
     def _process_scope(self, node, **kwargs):
+
+        # keep a copy of the stored names before the scope
+        previous_stored_names = self.stored_names.copy()
 
         assigns = [x for x in node.body if isinstance(x, nodes.Assign)]
         node.body = [x for x in node.body if not isinstance(x, nodes.Assign)]
@@ -265,6 +287,9 @@ class Compiler(object):
         self.output.write(EXECUTE_START)
         self.output.write(IIFE_END)
         self.output.write(EXECUTE_END)
+
+        # restore previous stored names
+        self.stored_names = previous_stored_names
 
     def _process_compare(self, node, **kwargs):
         self._process_node(node.expr, **kwargs)
