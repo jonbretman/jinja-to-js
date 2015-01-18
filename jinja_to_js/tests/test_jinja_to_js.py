@@ -92,6 +92,15 @@ class Tests(unittest.TestCase):
                        empty_string='',
                        non_empty_string='hello')
 
+    def test_comparisons(self):
+        self._run_test('comparisons',
+                       list_a=[1, 2, 3],
+                       list_b=[1, 2, 3],
+                       list_c=[2, 3, 4],
+                       dict_a=dict(one='one'),
+                       dict_b=dict(one='one'),
+                       dict_c=dict(two='two'))
+
     def _run_test(self, name, **kwargs):
 
         # first we'll render the jinja template

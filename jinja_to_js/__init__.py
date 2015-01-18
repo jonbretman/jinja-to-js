@@ -38,8 +38,8 @@ PAREN_START = ' ('
 PAREN_END = ') '
 EACH_START = '_.each('
 KEYS_START = '_.keys('
+IS_EQUAL_START = '_.isEqual('
 OK_FUNCTION_START = '__ok('
-EACH_END = '});'
 VAR = 'var '
 TERMINATOR = ';'
 IF = 'if'
@@ -54,8 +54,8 @@ TYPEOF = 'typeof '
 STR_UNDEFINED = '"undefined"'
 CONTEXT_NAME = 'context'
 OPERANDS = {
-    'eq': ' === ',
-    'ne': ' !== ',
+    'eq': '',
+    'ne': '',
     'lt': ' < ',
     'gt': ' > ',
     'lteq': ' <= ',
@@ -245,7 +245,9 @@ class JinjaToJS(object):
                 self._process_node(n, **kwargs)
 
         self.output.write(EXECUTE_START)
-        self.output.write(EACH_END)
+        self.output.write(BLOCK_CLOSE)
+        self.output.write(PAREN_END)
+        self.output.write(TERMINATOR)
         self.output.write(EXECUTE_END)
 
         # restore the stored names
@@ -368,14 +370,30 @@ class JinjaToJS(object):
         self.stored_names = previous_stored_names
 
     def _process_compare(self, node, **kwargs):
+        operand = node.ops[0].op
+        use_is_equal = operand in ('eq', 'ne')
+
         with option(kwargs, OPTION_USE_OK_WRAPPER, False):
+
+            if use_is_equal:
+                if operand == 'ne':
+                    self.output.write(NOT)
+                self.output.write(IS_EQUAL_START)
+
             self._process_node(node.expr, **kwargs)
+
+            if use_is_equal:
+                self.output.write(COMMA)
+
             for n in node.ops:
                 self._process_node(n, **kwargs)
 
+            if use_is_equal:
+                self.output.write(PAREN_END)
+
     def _process_operand(self, node, **kwargs):
         operand = OPERANDS.get(node.op)
-        if not operand:
+        if operand is None:
             raise Exception('Unknown operand %s' % node.op)
         self.output.write(operand)
         self._process_node(node.expr, **kwargs)
