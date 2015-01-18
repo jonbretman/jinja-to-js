@@ -28,9 +28,11 @@ def compile_str(env, template_str):
 
 OPTION_INSIDE_IF = 'inside_if'
 OPTION_INSIDE_BLOCK = 'inside_block'
+OPTION_INTERPOLATE_SAFE = 'interpolate_safe'
 
 INTERPOLATION_START = '<%- '
 INTERPOLATION_END = ' %>'
+INTERPOLATION_SAFE_START = '<%= '
 PROPERTY_ACCESSOR = '.'
 EXECUTE_START = '<% '
 EXECUTE_END = ' %>'
@@ -92,13 +94,20 @@ def is_method_call(node, method_name):
     return method == method_name
 
 
+def temp_var_names_generator():
+    x = 0
+    while True:
+        yield '__$%s' % x
+        x += 1
+
+
 class Compiler(object):
 
     def __init__(self, ast):
         self.output = StringIO()
         self.stored_names = set()
-        self.tmp_var_int = 0
-        self.tmp_vars = []
+        self.temp_var_names = temp_var_names_generator()
+
         for node in ast.body:
             self._process_node(node)
 
@@ -122,7 +131,10 @@ class Compiler(object):
 
     def _process_name(self, node, **kwargs):
         if not kwargs.get(OPTION_INSIDE_BLOCK):
-            self.output.write(INTERPOLATION_START)
+            if kwargs.get(OPTION_INTERPOLATE_SAFE):
+                self.output.write(INTERPOLATION_SAFE_START)
+            else:
+                self.output.write(INTERPOLATION_START)
 
         if node.name not in self.stored_names and node.ctx != 'store':
             self.output.write(CONTEXT_NAME)
@@ -264,8 +276,12 @@ class Compiler(object):
             print 'Usage of call with unknown method %s: %s' % (node.node.attr, node)
 
     def _process_filter(self, node, **kwargs):
-        self._process_node(node.node, **kwargs)
-        print 'Usage of filter: %s' % node.name
+        if node.name == 'safe':
+            with option(kwargs, OPTION_INTERPOLATE_SAFE, True):
+                self._process_node(node.node, **kwargs)
+        else:
+            self._process_node(node.node, **kwargs)
+        print nodes
 
     def _process_assign(self, node, **kwargs):
         self.output.write(EXECUTE_START)
@@ -350,8 +366,7 @@ class Compiler(object):
                 name = assign.name
 
             # create a temp variable name
-            tmp_var = '__$%s' % self.tmp_var_int
-            self.tmp_var_int += 1
+            tmp_var = self.temp_var_names.next()
 
             # save previous value
             self.output.write(EXECUTE_START)
