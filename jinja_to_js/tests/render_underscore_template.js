@@ -1,12 +1,34 @@
 var _ = require('underscore');
 var fs = require('fs');
 
-var templateFilePath = process.argv[2];
-var jsonFilePath = process.argv[3];
+var args = process.argv;
+var templates = {};
+var data = JSON.parse(readFile(args[args.length - 1]));
+var mainTemplate, i, parts;
 
-var template = fs.readFileSync(templateFilePath, 'utf8');
-var data = JSON.parse(fs.readFileSync(jsonFilePath, 'utf8'));
+for (i = 2; i < args.length - 1; i++) {
+    parts = parseTemplateArgument(args[i]);
+    templates[parts.name] = _.template(readFile(parts.path), {variable: 'context'});
 
-process.stdout.write(
-    _.template(template, {variable: 'context'})(data)
-);
+    if (i == 2) {
+        mainTemplate = parts.name;
+    }
+}
+
+data.include = function (name) {
+    return templates[name];
+};
+
+process.stdout.write(templates[mainTemplate](data));
+
+function readFile(name) {
+    return fs.readFileSync(name, 'utf8');
+}
+
+function parseTemplateArgument(str) {
+    var parts = str.split(':');
+    return {
+        name: parts[0],
+        path: parts[1]
+    }
+}

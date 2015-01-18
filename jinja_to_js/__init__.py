@@ -23,22 +23,22 @@ OPTION_NO_INTERPOLATE = 'no_interpolate'
 OPTION_INTERPOLATE_SAFE = 'interpolate_safe'
 OPTION_USE_OK_WRAPPER = 'use_ok_wrapper'
 
-INTERPOLATION_START = '<%- '
-INTERPOLATION_END = ' %>'
-INTERPOLATION_SAFE_START = '<%= '
+INTERPOLATION_START = '<%-'
+INTERPOLATION_END = '%>'
+INTERPOLATION_SAFE_START = '<%='
 PROPERTY_ACCESSOR = '.'
-EXECUTE_START = '<% '
-EXECUTE_END = ' %>'
+EXECUTE_START = '<%'
+EXECUTE_END = '%>'
 BLOCK_OPEN = '{'
 BLOCK_CLOSE = '}'
 ARRAY_OPEN = '['
 ARRAY_CLOSE = ']'
-COMMA = ', '
+COMMA = ','
 FUNCTION = 'function'
 IIFE_START = '(function () {'
 IIFE_END = '})();'
-PAREN_START = ' ('
-PAREN_END = ') '
+PAREN_START = '('
+PAREN_END = ')'
 EACH_START = '_.each('
 KEYS_START = '_.keys('
 IS_EQUAL_START = '_.isEqual('
@@ -131,11 +131,13 @@ def temp_var_names_generator():
 
 class JinjaToJS(object):
 
-    def __init__(self, environment, template_name=None, template_string=None):
+    def __init__(self, environment, template_name=None,
+                 template_string=None, include_fn_name='context.include'):
         self.environment = environment
         self.output = StringIO()
         self.stored_names = set()
         self.temp_var_names = temp_var_names_generator()
+        self.include_fn_name = include_fn_name
 
         if template_name is not None:
             template_string, _, _ = environment.loader.get_source(environment, template_name)
@@ -424,6 +426,18 @@ class JinjaToJS(object):
                 self.output.write(PAREN_END)
             else:
                 raise Exception('Unsupported test %s' % node.name)
+
+    def _process_include(self, node, **kwargs):
+        self.output.write(INTERPOLATION_SAFE_START)
+        self.output.write(self.include_fn_name)
+        self.output.write(PAREN_START)
+        with option(kwargs, OPTION_NO_INTERPOLATE, True):
+            self._process_node(node.template, **kwargs)
+        self.output.write(PAREN_END)
+        self.output.write(PAREN_START)
+        self.output.write(CONTEXT_NAME)
+        self.output.write(PAREN_END)
+        self.output.write(INTERPOLATION_END)
 
     def _process_loop_helper(self, node, **kwargs):
         if node.attr == LOOP_HELPER_INDEX:
