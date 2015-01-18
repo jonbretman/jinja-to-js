@@ -122,7 +122,7 @@ class Compiler(object):
         if callable(handler):
             handler(node, **kwargs)
         else:
-            print 'Unknown node %s' % node
+            raise Exception('Unknown node %s' % node)
 
     def _process_output(self, node, **kwargs):
         for n in node.nodes:
@@ -198,7 +198,7 @@ class Compiler(object):
 
         assigns = node.target.items if isinstance(node.target, nodes.Tuple) else [node.target]
 
-        with self.temp_vars(assigns, **kwargs):
+        with self._scoped_variables(assigns, **kwargs):
             for n in node.body:
                 self._process_node(n, **kwargs)
 
@@ -275,15 +275,14 @@ class Compiler(object):
         if is_method_call(node, DICT_ITER_METHODS):
             self._process_node(node.node.node, **kwargs)
         else:
-            print 'Usage of call with unknown method %s: %s' % (node.node.attr, node)
+            raise Exception('Usage of call with unknown method %s: %s' % (node.node.attr, node))
 
     def _process_filter(self, node, **kwargs):
         if node.name == 'safe':
             with option(kwargs, OPTION_INTERPOLATE_SAFE):
                 self._process_node(node.node, **kwargs)
         else:
-            self._process_node(node.node, **kwargs)
-        print nodes
+            raise Exception('Unsupported filter %s', node)
 
     def _process_assign(self, node, **kwargs):
         self.output.write(EXECUTE_START)
@@ -312,7 +311,7 @@ class Compiler(object):
         self.output.write(IIFE_START)
         self.output.write(EXECUTE_END)
 
-        with self.temp_vars(assigns, **kwargs):
+        with self._scoped_variables(assigns, **kwargs):
             for node in node.body:
                 self._process_node(node, **kwargs)
 
@@ -351,21 +350,13 @@ class Compiler(object):
         else:
             raise Exception('Unknown Const type %s' % type(node.value))
 
-    def _process_include(self, node, **kwargs):
-        raise NotImplemented()
-
-    def _process_block(self, node, **_):
-        pass
-
     @contextlib.contextmanager
-    def temp_vars(self, nodes_list, **kwargs):
+    def _scoped_variables(self, nodes_list, **kwargs):
         tmp_vars = []
-        for assign in nodes_list:
+        for node in nodes_list:
 
-            if isinstance(assign, nodes.Assign):
-                name = assign.target.name
-            else:
-                name = assign.name
+            is_assign_node = isinstance(node, nodes.Assign)
+            name = node.target.name if is_assign_node else node.name
 
             # create a temp variable name
             tmp_var = self.temp_var_names.next()
@@ -386,11 +377,11 @@ class Compiler(object):
             self.output.write(name)
             self.output.write(ASSIGN)
 
-            if isinstance(assign, nodes.Assign):
+            if is_assign_node:
                 with option(kwargs, OPTION_NO_INTERPOLATE):
-                    self._process_node(assign.node, **kwargs)
+                    self._process_node(node.node, **kwargs)
             else:
-                self.output.write(assign.name)
+                self.output.write(node.name)
 
             self.output.write(TERMINATOR)
             self.output.write(EXECUTE_END)
