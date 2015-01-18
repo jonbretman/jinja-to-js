@@ -60,7 +60,9 @@ OPERANDS = {
     'eq': ' === ',
     'ne': ' !== ',
     'lt': ' < ',
-    'gt': ' > '
+    'gt': ' > ',
+    'lteq': ' <= ',
+    'gteq': ' >= '
 }
 
 DICT_ITER_METHODS = (

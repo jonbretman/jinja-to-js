@@ -72,6 +72,11 @@ class Tests(unittest.TestCase):
     def test_safe_filter(self):
         self._run_test('safe_filter', foo='&lt;div&gt;')
 
+    def test_conditions(self):
+        self._run_test('conditions',
+                       foo=False, bar=6, baz=3,
+                       person='jimmy', fizz=5, buzz=5)
+
     def _run_test(self, name, **kwargs):
 
         # first we'll render the jinja template
