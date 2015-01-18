@@ -77,6 +77,9 @@ class Tests(unittest.TestCase):
                        foo=False, bar=6, baz=3,
                        person='jimmy', fizz=5, buzz=5)
 
+    def test_loop_helpers(self):
+        self._run_test('loop_helpers', things=[1, 2, 3, 4, 5, 6])
+
     def _run_test(self, name, **kwargs):
 
         # first we'll render the jinja template

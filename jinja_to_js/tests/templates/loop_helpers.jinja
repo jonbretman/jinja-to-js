@@ -1,0 +1,14 @@
+{% for thing in things %}
+
+    loop iteration {{ loop.index }} or {{ loop.length }}
+    loop iteration (0 index) {{ loop.index0 }}
+
+    {% if loop.first %}
+        first iteration
+    {% endif %}
+
+    {% if loop.last %}
+        last iteration
+    {% endif %}
+
+{% endfor %}

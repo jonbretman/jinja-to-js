@@ -72,6 +72,19 @@ DICT_ITER_METHODS = (
     dict.keys.__name__
 )
 
+LOOP_HELPER_INDEX = 'index'
+LOOP_HELPER_INDEX_0 = 'index0'
+LOOP_HELPER_FIRST = 'first'
+LOOP_HELPER_LAST = 'last'
+LOOP_HELPER_LENGTH = 'length'
+LOOP_HELPERS = (
+    LOOP_HELPER_INDEX,
+    LOOP_HELPER_INDEX_0,
+    LOOP_HELPER_FIRST,
+    LOOP_HELPER_LAST,
+    LOOP_HELPER_LENGTH
+)
+
 
 @contextlib.contextmanager
 def option(kwargs, key, value=True):
@@ -94,6 +107,10 @@ def is_method_call(node, method_name):
         return method in method_name
 
     return method == method_name
+
+
+def is_loop_helper(node):
+    return hasattr(node, 'node') and isinstance(node.node, nodes.Name) and node.node.name == 'loop'
 
 
 def temp_var_names_generator():
@@ -154,10 +171,13 @@ class Compiler(object):
         if not kwargs.get(OPTION_NO_INTERPOLATE):
             self.output.write(INTERPOLATION_START)
 
-        with option(kwargs, OPTION_NO_INTERPOLATE):
-            self._process_node(node.node, **kwargs)
-            self.output.write(PROPERTY_ACCESSOR)
-            self.output.write(node.attr)
+        if is_loop_helper(node):
+            self._process_loop_helper(node, **kwargs)
+        else:
+            with option(kwargs, OPTION_NO_INTERPOLATE):
+                self._process_node(node.node, **kwargs)
+                self.output.write(PROPERTY_ACCESSOR)
+                self.output.write(node.attr)
 
         if not kwargs.get(OPTION_NO_INTERPOLATE):
             self.output.write(INTERPOLATION_END)
@@ -349,6 +369,18 @@ class Compiler(object):
 
         else:
             raise Exception('Unknown Const type %s' % type(node.value))
+
+    def _process_loop_helper(self, node, **kwargs):
+        if node.attr == LOOP_HELPER_INDEX:
+            self.output.write('(arguments[1] + 1)')
+        elif node.attr == LOOP_HELPER_INDEX_0:
+            self.output.write('arguments[1]')
+        elif node.attr == LOOP_HELPER_FIRST:
+            self.output.write('(arguments[1] == 0)')
+        elif node.attr == LOOP_HELPER_LAST:
+            self.output.write('(arguments[1] == arguments[2].length - 1)')
+        elif node.attr == LOOP_HELPER_LENGTH:
+            self.output.write('arguments[2].length')
 
     @contextlib.contextmanager
     def _scoped_variables(self, nodes_list, **kwargs):
