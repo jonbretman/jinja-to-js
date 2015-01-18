@@ -131,7 +131,6 @@ class JinjaToJS(object):
     def __init__(self, environment, template_name=None, template_string=None):
         self.environment = environment
         self.output = StringIO()
-        self.output.write(TRUTHY_HELPER)
         self.stored_names = set()
         self.temp_var_names = temp_var_names_generator()
 
@@ -172,6 +171,7 @@ class JinjaToJS(object):
                 self.output.write(INTERPOLATION_START)
 
         if kwargs.get(OPTION_USE_OK_WRAPPER):
+            self._add_truthy_helper()
             self.output.write(OK_FUNCTION_START)
 
         if node.name not in self.stored_names and node.ctx != 'store':
@@ -438,6 +438,16 @@ class JinjaToJS(object):
             self.output.write('(arguments[1] == arguments[2].length - 1)')
         elif node.attr == LOOP_HELPER_LENGTH:
             self.output.write('arguments[2].length')
+
+    def _add_truthy_helper(self):
+        if getattr(self, '_truthy_helper_added', False):
+            return
+
+        output = StringIO()
+        output.write(TRUTHY_HELPER)
+        output.write(self.output.getvalue())
+        self.output = output
+        setattr(self, '_truthy_helper_added', True)
 
     @contextlib.contextmanager
     def _scoped_variables(self, nodes_list, **kwargs):
