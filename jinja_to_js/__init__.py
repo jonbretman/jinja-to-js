@@ -29,6 +29,7 @@ def compile_string(env, template_str):
 OPTION_INSIDE_IF = 'inside_if'
 OPTION_NO_INTERPOLATE = 'no_interpolate'
 OPTION_INTERPOLATE_SAFE = 'interpolate_safe'
+OPTION_USE_OK_WRAPPER = 'use_ok_wrapper'
 
 INTERPOLATION_START = '<%- '
 INTERPOLATION_END = ' %>'
@@ -46,6 +47,7 @@ PAREN_START = ' ('
 PAREN_END = ') '
 EACH_START = '_.each('
 KEYS_START = '_.keys('
+OK_FUNCTION_START = '__ok('
 EACH_END = '});'
 VAR = 'var '
 TERMINATOR = ';'
@@ -68,6 +70,15 @@ OPERANDS = {
     'lteq': ' <= ',
     'gteq': ' >= '
 }
+
+TRUTHY_HELPER = """
+%s
+function __ok(o) {
+    var toString = Object.prototype.toString;
+    return !o ? false : toString.call(o).match(/\[object (Array|Object)\]/) ? !_.isEmpty(o) : !!o;
+}
+%s
+""" % (EXECUTE_START, EXECUTE_END)
 
 DICT_ITER_METHODS = (
     dict.iteritems.__name__,
@@ -128,6 +139,7 @@ class Compiler(object):
 
     def __init__(self, ast):
         self.output = StringIO()
+        self.output.write(TRUTHY_HELPER)
         self.stored_names = set()
         self.temp_var_names = temp_var_names_generator()
 
@@ -159,6 +171,9 @@ class Compiler(object):
             else:
                 self.output.write(INTERPOLATION_START)
 
+        if kwargs.get(OPTION_USE_OK_WRAPPER):
+            self.output.write(OK_FUNCTION_START)
+
         if node.name not in self.stored_names and node.ctx != 'store':
             self.output.write(CONTEXT_NAME)
             self.output.write(PROPERTY_ACCESSOR)
@@ -167,6 +182,9 @@ class Compiler(object):
             self.stored_names.add(node.name)
 
         self.output.write(node.name)
+
+        if kwargs.get(OPTION_USE_OK_WRAPPER):
+            self.output.write(PAREN_END)
 
         if not kwargs.get(OPTION_NO_INTERPOLATE):
             self.output.write(INTERPOLATION_END)
@@ -240,7 +258,10 @@ class Compiler(object):
                 self.output.write(EXECUTE_START)
             self.output.write(IF)
             self.output.write(PAREN_START)
-            self._process_node(node.test, **kwargs)
+
+            with option(kwargs, OPTION_USE_OK_WRAPPER):
+                self._process_node(node.test, **kwargs)
+
             self.output.write(PAREN_END)
             self.output.write(BLOCK_OPEN)
             self.output.write(EXECUTE_END)
@@ -347,9 +368,10 @@ class Compiler(object):
         self.stored_names = previous_stored_names
 
     def _process_compare(self, node, **kwargs):
-        self._process_node(node.expr, **kwargs)
-        for n in node.ops:
-            self._process_node(n, **kwargs)
+        with option(kwargs, OPTION_USE_OK_WRAPPER, False):
+            self._process_node(node.expr, **kwargs)
+            for n in node.ops:
+                self._process_node(n, **kwargs)
 
     def _process_operand(self, node, **kwargs):
         operand = OPERANDS.get(node.op)
@@ -375,16 +397,17 @@ class Compiler(object):
             raise Exception('Unknown Const type %s' % type(node.value))
 
     def _process_test(self, node, **kwargs):
-        if node.name in ('defined', 'undefined'):
-            self.output.write(PAREN_START)
-            self.output.write(TYPEOF)
-            with option(kwargs, OPTION_NO_INTERPOLATE):
-                self._process_node(node.node, **kwargs)
-            self.output.write(NOT_EQUAL if node.name == 'defined' else EQUAL)
-            self.output.write(STR_UNDEFINED)
-            self.output.write(PAREN_END)
-        else:
-            raise Exception('Unsupported test %s' % node.name)
+        with option(kwargs, OPTION_USE_OK_WRAPPER, False):
+            if node.name in ('defined', 'undefined'):
+                self.output.write(PAREN_START)
+                self.output.write(TYPEOF)
+                with option(kwargs, OPTION_NO_INTERPOLATE):
+                    self._process_node(node.node, **kwargs)
+                self.output.write(NOT_EQUAL if node.name == 'defined' else EQUAL)
+                self.output.write(STR_UNDEFINED)
+                self.output.write(PAREN_END)
+            else:
+                raise Exception('Unsupported test %s' % node.name)
 
     def _process_loop_helper(self, node, **kwargs):
         if node.attr == LOOP_HELPER_INDEX:

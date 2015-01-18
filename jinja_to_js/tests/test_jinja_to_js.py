@@ -83,6 +83,15 @@ class Tests(unittest.TestCase):
     def test_tests(self):
         self._run_test('tests', age=30)
 
+    def test_truthy_falsey_values(self):
+        self._run_test('truthy_falsey_values',
+                       non_empty_array=[1, 2, 3],
+                       empty_array=[],
+                       empty_object={},
+                       non_empty_object=dict(one='one'),
+                       empty_string='',
+                       non_empty_string='hello')
+
     def _run_test(self, name, **kwargs):
 
         # first we'll render the jinja template
