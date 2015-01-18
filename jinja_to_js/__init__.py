@@ -1,6 +1,7 @@
 import contextlib
 
 from cStringIO import StringIO
+import json
 from jinja2 import nodes, Environment
 from jinja2.nodes import Call, Getattr
 
@@ -30,6 +31,8 @@ EXECUTE_START = '<% '
 EXECUTE_END = ' %>'
 BLOCK_OPEN = '{'
 BLOCK_CLOSE = '}'
+ARRAY_OPEN = '['
+ARRAY_CLOSE = ']'
 COMMA = ', '
 FUNCTION = 'function'
 IIFE_START = '(function () {'
@@ -399,20 +402,15 @@ class JinjaToJS(object):
         self._process_node(node.expr, **kwargs)
 
     def _process_const(self, node, **_):
-        if isinstance(node.value, basestring):
-            self.output.write("'")
-            self.output.write(str(node.value))
-            self.output.write("'")
+        self.output.write(json.dumps(node.value))
 
-        # important to check boolean before int as boolean values are instances of int
-        elif isinstance(node.value, bool):
-            self.output.write('true' if node.value else 'false')
-
-        elif isinstance(node.value, int):
-            self.output.write(str(node.value))
-
-        else:
-            raise Exception('Unknown Const type %s' % type(node.value))
+    def _process_list(self, node, **kwargs):
+        self.output.write(ARRAY_OPEN)
+        for i, item in enumerate(node.items):
+            self._process_node(item, **kwargs)
+            if i < len(node.items) - 1:
+                self.output.write(COMMA)
+        self.output.write(ARRAY_CLOSE)
 
     def _process_test(self, node, **kwargs):
         with option(kwargs, OPTION_USE_OK_WRAPPER, False):
@@ -460,7 +458,7 @@ class JinjaToJS(object):
             # create a temp variable name
             tmp_var = self.temp_var_names.next()
 
-            # save previous value
+            # save previous context value
             self.output.write(EXECUTE_START)
             self.output.write(VAR)
             self.output.write(tmp_var)
@@ -470,7 +468,7 @@ class JinjaToJS(object):
             self.output.write(name)
             self.output.write(TERMINATOR)
 
-            # set up new value
+            # add new value to context
             self.output.write(CONTEXT_NAME)
             self.output.write(PROPERTY_ACCESSOR)
             self.output.write(name)
@@ -489,6 +487,7 @@ class JinjaToJS(object):
 
         yield
 
+        # restore context
         for tmp_var, name in tmp_vars:
             self.output.write(EXECUTE_START)
             self.output.write(CONTEXT_NAME)
