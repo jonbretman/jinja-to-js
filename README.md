@@ -1,10 +1,12 @@
 # Jinja to JS
-Converts Jinja2 templates into Underscore/Lo-Dash templates for use in the browser. Not all Jinja2 features are supported, this readme explains the ones that are.
+Converts Jinja2 templates into Underscore/Lo-Dash templates so that they can be used in the browser.
 
-#### Why Underscore/Lo-Dash
-The Underscore/Lo-Dash library provides a lot of functional utilities that make implementing the features of Jinja much easier than it would be in other popular JavaScript templating languages like Mustache.
+#### How it works
+First the Jinja template is [parsed into an AST](http://jinja.pocoo.org/docs/dev/api/#jinja2.Environment.parse), and then from that an Underscore style template string is created. This string can then be compiled into a JavaScript function using the `_.template` function. Docs for the `_.template` function can be found [here](http://underscorejs.org/#template) for Underscore and [here](https://lodash.com/docs#template) for Lo-Dash. It is important that when the template is compiled the `variable` option is set to `"context"`.
 
-#### Compiling Example
+The Underscore/Lo-Dash libraries provides a lot of functional utilities that make implementing the features of Jinja quite easy. As such the compiled template functions require that Underscore/Lo-Dash are available.
+
+#### Example
 ```python
 from jinja2.environment import Environment
 from jinja2.loaders import FileSystemLoader
