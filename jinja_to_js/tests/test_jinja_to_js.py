@@ -8,7 +8,7 @@ import unittest
 from nose.tools import eq_ as equal
 from jinja2.environment import Environment
 from jinja2.loaders import FileSystemLoader
-from jinja_to_js import compile_template
+from jinja_to_js import JinjaToJS
 
 
 class Tests(unittest.TestCase):
@@ -97,7 +97,7 @@ class Tests(unittest.TestCase):
         # first we'll render the jinja template
         jinja_result = self.env.get_template('%s.jinja' % name).render(**kwargs).strip()
 
-        underscore_template_str = compile_template(self.env, self.loader, '%s.jinja' % name)
+        underscore_template_str = JinjaToJS(self.env, template_name='%s.jinja' % name).get_output()
 
         # now create a temp file containing the compiled underscore template
         underscore_file, underscore_file_path = tempfile.mkstemp()

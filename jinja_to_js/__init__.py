@@ -1,29 +1,20 @@
 import contextlib
 
 from cStringIO import StringIO
-from jinja2 import nodes
+from jinja2 import nodes, Environment
 from jinja2.nodes import Call, Getattr
 
 
-def compile_template(env, loader, template_name):
-    """
-    Compiles the template with the given name into an
-    Underscore template for use in the browser.
-    """
-
-    template_string, _, _ = loader.get_source(env, template_name)
-    parsed = env.parse(template_string)
-    return Compiler(parsed).get_output()
-
-
-def compile_string(env, template_str):
+def compile_string(template_str, environment=None):
     """
     Compiles a Jinja template string into an Underscore template.
     Useful for quick testing on the command line.
     """
 
-    parsed = env.parse(template_str)
-    return Compiler(parsed).get_output()
+    if environment is None:
+        environment = Environment(extensions=['jinja2.ext.with_'])
+
+    return JinjaToJS(environment=environment, template_string=template_str).get_output()
 
 
 OPTION_INSIDE_IF = 'inside_if'
@@ -135,13 +126,22 @@ def temp_var_names_generator():
         x += 1
 
 
-class Compiler(object):
+class JinjaToJS(object):
 
-    def __init__(self, ast):
+    def __init__(self, environment, template_name=None, template_string=None):
+        self.environment = environment
         self.output = StringIO()
         self.output.write(TRUTHY_HELPER)
         self.stored_names = set()
         self.temp_var_names = temp_var_names_generator()
+
+        if template_name is not None:
+            template_string, _, _ = environment.loader.get_source(environment, template_name)
+
+        if not template_string:
+            raise ValueError('Either a template_name or template_string must be provided.')
+
+        ast = environment.parse(template_string)
 
         for node in ast.body:
             self._process_node(node)
