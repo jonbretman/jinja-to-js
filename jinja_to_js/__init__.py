@@ -53,6 +53,7 @@ NOT = '!'
 OR = ' || '
 AND = ' && '
 ASSIGN = ' = '
+CONTEXT_NAME = 'context'
 OPERANDS = {
     'eq': ' === ',
     'ne': ' !== ',
@@ -72,10 +73,8 @@ DICT_ITER_METHODS = (
 def option(kwargs, key, value):
     old_value = kwargs.get(key)
     kwargs[key] = value
-    try:
-        yield
-    finally:
-        kwargs[key] = old_value
+    yield
+    kwargs[key] = old_value
 
 
 def is_method_call(node, method_name):
@@ -98,6 +97,8 @@ class Compiler(object):
     def __init__(self, ast):
         self.output = StringIO()
         self.stored_names = set()
+        self.tmp_var_int = 0
+        self.tmp_vars = []
         for node in ast.body:
             self._process_node(node)
 
@@ -124,7 +125,8 @@ class Compiler(object):
             self.output.write(INTERPOLATION_START)
 
         if node.name not in self.stored_names and node.ctx != 'store':
-            self.output.write('context.')
+            self.output.write(CONTEXT_NAME)
+            self.output.write(PROPERTY_ACCESSOR)
 
         if node.ctx == 'store':
             self.stored_names.add(node.name)
@@ -180,9 +182,11 @@ class Compiler(object):
         self.output.write(BLOCK_OPEN)
         self.output.write(EXECUTE_END)
 
-        # body
-        for n in node.body:
-            self._process_node(n, **kwargs)
+        assigns = node.target.items if isinstance(node.target, nodes.Tuple) else [node.target]
+
+        with self.temp_vars(assigns, **kwargs):
+            for n in node.body:
+                self._process_node(n, **kwargs)
 
         self.output.write(EXECUTE_START)
         self.output.write(EACH_END)
@@ -290,11 +294,9 @@ class Compiler(object):
         self.output.write(IIFE_START)
         self.output.write(EXECUTE_END)
 
-        for assign in assigns:
-            self._process_node(assign, **kwargs)
-
-        for node in node.body:
-            self._process_node(node, **kwargs)
+        with self.temp_vars(assigns, **kwargs):
+            for node in node.body:
+                self._process_node(node, **kwargs)
 
         self.output.write(EXECUTE_START)
         self.output.write(IIFE_END)
@@ -336,3 +338,56 @@ class Compiler(object):
 
     def _process_block(self, node, **_):
         pass
+
+    @contextlib.contextmanager
+    def temp_vars(self, nodes_list, **kwargs):
+        tmp_vars = []
+        for assign in nodes_list:
+
+            if isinstance(assign, nodes.Assign):
+                name = assign.target.name
+            else:
+                name = assign.name
+
+            # create a temp variable name
+            tmp_var = '__$%s' % self.tmp_var_int
+            self.tmp_var_int += 1
+
+            # save previous value
+            self.output.write(EXECUTE_START)
+            self.output.write(VAR)
+            self.output.write(tmp_var)
+            self.output.write(ASSIGN)
+            self.output.write(CONTEXT_NAME)
+            self.output.write(PROPERTY_ACCESSOR)
+            self.output.write(name)
+            self.output.write(TERMINATOR)
+
+            # set up new value
+            self.output.write(CONTEXT_NAME)
+            self.output.write(PROPERTY_ACCESSOR)
+            self.output.write(name)
+            self.output.write(ASSIGN)
+
+            if isinstance(assign, nodes.Assign):
+                with option(kwargs, OPTION_INSIDE_BLOCK, True):
+                    self._process_node(assign.node, **kwargs)
+            else:
+                self.output.write(assign.name)
+
+            self.output.write(TERMINATOR)
+            self.output.write(EXECUTE_END)
+
+            tmp_vars.append((tmp_var, name))
+
+        yield
+
+        for tmp_var, name in tmp_vars:
+            self.output.write(EXECUTE_START)
+            self.output.write(CONTEXT_NAME)
+            self.output.write(PROPERTY_ACCESSOR)
+            self.output.write(name)
+            self.output.write(ASSIGN)
+            self.output.write(tmp_var)
+            self.output.write(TERMINATOR)
+            self.output.write(EXECUTE_END)
