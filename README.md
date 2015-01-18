@@ -4,7 +4,7 @@ Converts Jinja2 templates into Underscore/Lo-Dash templates for use in the brows
 #### Why Underscore/Lo-Dash
 The Underscore/Lo-Dash library provides a lot of functional utilities that make implementing the features of Jinja much easier than it would be in other popular JavaScript templating languages like Mustache.
 
-#### API
+#### Compiling Example
 ```python
 from jinja2.environment import Environment
 from jinja2.loaders import FileSystemLoader
@@ -15,6 +15,12 @@ environment = Environment(loader=loader, extensions=['jinja2.ext.with_'])
 compiler = JinjaToJS(environment, template_name='my_template.jinja')
 underscore_template = compiler.get_output()
 ```
+
+#### Options
+* `environment` (**required**) A Jinja environment with a `loader`.
+* `template_name` The name of the template to convert.
+* `template_string` A Jinja template string.
+* `include_fn_name` The function to call when a template needs to be included.
 
 #### Supported Features
 
@@ -105,6 +111,32 @@ Assignment is supported via `{% set %}` although currently only for strings, num
 {% set foo = True %}
 {% set bar = 'some string' %}
 {% set baz = some_context_variable %}
+```
+
+##### Includes
+[Jinja Docs](http://jinja.pocoo.org/docs/dev/templates/#include)
+
+Includes are supported by taking the following steps:
+
+* A function dictated by `include_fn_name` is called with the name of the template to be included as the only argument. The default value of `include_fn_name` is `context.include`. This function **MUST** return a compiled template function
+* The returned function is called with the current context as it's only argument.
+* The return value of this function is output into the current template.
+
+The following shows a simple example of this in practice.
+```js
+var templates = {
+    template_1: theCompiledFnForTemplate1,
+    template_2: theCompiledFnForTemplate2
+};
+
+function getTemplate(name) {
+    return templates[name];
+}
+
+function render(name, context) {
+    context.include = getTemplate;
+    return getTemplate(name)(context);
+}
 ```
 
 ##### Comments
