@@ -80,6 +80,9 @@ class Tests(unittest.TestCase):
     def test_loop_helpers(self):
         self._run_test('loop_helpers', things=[1, 2, 3, 4, 5, 6])
 
+    def test_tests(self):
+        self._run_test('tests', age=30)
+
     def _run_test(self, name, **kwargs):
 
         # first we'll render the jinja template

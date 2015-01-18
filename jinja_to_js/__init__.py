@@ -55,6 +55,10 @@ NOT = '!'
 OR = ' || '
 AND = ' && '
 ASSIGN = ' = '
+NOT_EQUAL = ' !== '
+EQUAL = ' === '
+TYPEOF = 'typeof '
+STR_UNDEFINED = '"undefined"'
 CONTEXT_NAME = 'context'
 OPERANDS = {
     'eq': ' === ',
@@ -369,6 +373,18 @@ class Compiler(object):
 
         else:
             raise Exception('Unknown Const type %s' % type(node.value))
+
+    def _process_test(self, node, **kwargs):
+        if node.name in ('defined', 'undefined'):
+            self.output.write(PAREN_START)
+            self.output.write(TYPEOF)
+            with option(kwargs, OPTION_NO_INTERPOLATE):
+                self._process_node(node.node, **kwargs)
+            self.output.write(NOT_EQUAL if node.name == 'defined' else EQUAL)
+            self.output.write(STR_UNDEFINED)
+            self.output.write(PAREN_END)
+        else:
+            raise Exception('Unsupported test %s' % node.name)
 
     def _process_loop_helper(self, node, **kwargs):
         if node.attr == LOOP_HELPER_INDEX:
