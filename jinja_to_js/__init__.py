@@ -16,10 +16,10 @@ def compile_template(env, loader, template_name):
     return Compiler(parsed).get_output()
 
 
-def compile_str(env, template_str):
+def compile_string(env, template_str):
     """
-    Compiles the template with the given name into an
-    Underscore template for use in the browser.
+    Compiles a Jinja template string into an Underscore template.
+    Useful for quick testing on the command line.
     """
 
     parsed = env.parse(template_str)
@@ -27,7 +27,7 @@ def compile_str(env, template_str):
 
 
 OPTION_INSIDE_IF = 'inside_if'
-OPTION_INSIDE_BLOCK = 'inside_block'
+OPTION_NO_INTERPOLATE = 'no_interpolate'
 OPTION_INTERPOLATE_SAFE = 'interpolate_safe'
 
 INTERPOLATION_START = '<%- '
@@ -74,7 +74,7 @@ DICT_ITER_METHODS = (
 
 
 @contextlib.contextmanager
-def option(kwargs, key, value):
+def option(kwargs, key, value=True):
     old_value = kwargs.get(key)
     kwargs[key] = value
     yield
@@ -132,7 +132,7 @@ class Compiler(object):
         self.output.write(node.data)
 
     def _process_name(self, node, **kwargs):
-        if not kwargs.get(OPTION_INSIDE_BLOCK):
+        if not kwargs.get(OPTION_NO_INTERPOLATE):
             if kwargs.get(OPTION_INTERPOLATE_SAFE):
                 self.output.write(INTERPOLATION_SAFE_START)
             else:
@@ -147,19 +147,19 @@ class Compiler(object):
 
         self.output.write(node.name)
 
-        if not kwargs.get(OPTION_INSIDE_BLOCK):
+        if not kwargs.get(OPTION_NO_INTERPOLATE):
             self.output.write(INTERPOLATION_END)
 
     def _process_getattr(self, node, **kwargs):
-        if not kwargs.get(OPTION_INSIDE_BLOCK):
+        if not kwargs.get(OPTION_NO_INTERPOLATE):
             self.output.write(INTERPOLATION_START)
 
-        with option(kwargs, OPTION_INSIDE_BLOCK, True):
+        with option(kwargs, OPTION_NO_INTERPOLATE):
             self._process_node(node.node, **kwargs)
             self.output.write(PROPERTY_ACCESSOR)
             self.output.write(node.attr)
 
-        if not kwargs.get(OPTION_INSIDE_BLOCK):
+        if not kwargs.get(OPTION_NO_INTERPOLATE):
             self.output.write(INTERPOLATION_END)
 
     def _process_for(self, node, **kwargs):
@@ -173,7 +173,7 @@ class Compiler(object):
         if is_method_call(node.iter, dict.keys.__name__):
             self.output.write(KEYS_START)
 
-        with option(kwargs, OPTION_INSIDE_BLOCK, True):
+        with option(kwargs, OPTION_NO_INTERPOLATE):
             self._process_node(node.iter, **kwargs)
 
         if is_method_call(node.iter, dict.keys.__name__):
@@ -189,7 +189,7 @@ class Compiler(object):
             node.target.items[0] = node.target.items[1]
             node.target.items[1] = tmp
 
-        with option(kwargs, OPTION_INSIDE_BLOCK, True):
+        with option(kwargs, OPTION_NO_INTERPOLATE):
             self._process_node(node.target, **kwargs)
 
         self.output.write(PAREN_END)
@@ -211,7 +211,7 @@ class Compiler(object):
 
     def _process_if(self, node, **kwargs):
         # condition
-        with option(kwargs, OPTION_INSIDE_BLOCK, True):
+        with option(kwargs, OPTION_NO_INTERPOLATE):
             if not kwargs.get(OPTION_INSIDE_IF):
                 self.output.write(EXECUTE_START)
             self.output.write(IF)
@@ -239,7 +239,7 @@ class Compiler(object):
 
             # else if
             if isinstance(node.else_[0], nodes.If):
-                with option(kwargs, OPTION_INSIDE_IF, True):
+                with option(kwargs, OPTION_INSIDE_IF):
                     for n in node.else_:
                         self._process_node(n, **kwargs)
             else:
@@ -279,7 +279,7 @@ class Compiler(object):
 
     def _process_filter(self, node, **kwargs):
         if node.name == 'safe':
-            with option(kwargs, OPTION_INTERPOLATE_SAFE, True):
+            with option(kwargs, OPTION_INTERPOLATE_SAFE):
                 self._process_node(node.node, **kwargs)
         else:
             self._process_node(node.node, **kwargs)
@@ -289,12 +289,12 @@ class Compiler(object):
         self.output.write(EXECUTE_START)
         self.output.write(VAR)
 
-        with option(kwargs, OPTION_INSIDE_BLOCK, True):
+        with option(kwargs, OPTION_NO_INTERPOLATE):
             self._process_node(node.target, **kwargs)
 
         self.output.write(ASSIGN)
 
-        with option(kwargs, OPTION_INSIDE_BLOCK, True):
+        with option(kwargs, OPTION_NO_INTERPOLATE):
             self._process_node(node.node, **kwargs)
 
         self.output.write(TERMINATOR)
@@ -387,7 +387,7 @@ class Compiler(object):
             self.output.write(ASSIGN)
 
             if isinstance(assign, nodes.Assign):
-                with option(kwargs, OPTION_INSIDE_BLOCK, True):
+                with option(kwargs, OPTION_NO_INTERPOLATE):
                     self._process_node(assign.node, **kwargs)
             else:
                 self.output.write(assign.name)
