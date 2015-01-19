@@ -106,6 +106,9 @@ class Tests(unittest.TestCase):
                        additional=['includes/name.jinja'],
                        the_beatles=['John', 'Paul', 'George', 'Ringo'])
 
+    def test_math(self):
+        self._run_test('math.jinja')
+
     def _run_test(self, name, additional=None, **kwargs):
 
         tmp_file_paths = []

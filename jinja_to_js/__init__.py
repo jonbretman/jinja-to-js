@@ -20,51 +20,28 @@ def compile_string(template_str, environment=None):
 
 OPTION_INSIDE_IF = 'inside_if'
 OPTION_NO_INTERPOLATE = 'no_interpolate'
+OPTION_OUTPUT = 'output'
 OPTION_INTERPOLATE_SAFE = 'interpolate_safe'
 OPTION_USE_OK_WRAPPER = 'use_ok_wrapper'
 
-INTERPOLATION_START = '<%-'
-INTERPOLATION_END = '%>'
-INTERPOLATION_SAFE_START = '<%='
-PROPERTY_ACCESSOR = '.'
-EXECUTE_START = '<%'
-EXECUTE_END = '%>'
-BLOCK_OPEN = '{'
-BLOCK_CLOSE = '}'
-ARRAY_OPEN = '['
-ARRAY_CLOSE = ']'
-COMMA = ','
-FUNCTION = 'function'
-IIFE_START = '(function () {'
-IIFE_END = '})();'
-PAREN_START = '('
-PAREN_END = ')'
-EACH_START = '_.each('
-KEYS_START = '_.keys('
-IS_EQUAL_START = '_.isEqual('
-OK_FUNCTION_START = '__ok('
-VAR = 'var '
-TERMINATOR = ';'
-IF = 'if'
-ELSE = ' else '
-NOT = '!'
-OR = ' || '
-AND = ' && '
-ASSIGN = ' = '
-NOT_EQUAL = ' !== '
-EQUAL = ' === '
-TYPEOF = 'typeof '
-STR_UNDEFINED = '"undefined"'
+INTERPOLATION_START = '<%- '
+INTERPOLATION_END = ' %>'
+INTERPOLATION_SAFE_START = '<%= '
+EXECUTE_START = '<% '
+EXECUTE_END = ' %>'
+
 CONTEXT_NAME = 'context'
+
 OPERANDS = {
-    'eq': '',
-    'ne': '',
+    'eq': '',  # handled by _.isEqual
+    'ne': '',  # handled by _.isEqual
     'lt': ' < ',
     'gt': ' > ',
     'lteq': ' <= ',
     'gteq': ' >= '
 }
 
+# this function emulates Pythons boolean evaluation e.g. an empty list or object is false
 TRUTHY_HELPER = """
 %s
 function __ok(o) {
@@ -162,8 +139,9 @@ class JinjaToJS(object):
             raise Exception('Unknown node %s' % node)
 
     def _process_output(self, node, **kwargs):
-        for n in node.nodes:
-            self._process_node(n, **kwargs)
+        with option(kwargs, OPTION_OUTPUT):
+            for n in node.nodes:
+                self._process_node(n, **kwargs)
 
     def _process_templatedata(self, node, **_):
         self.output.write(node.data)
@@ -177,11 +155,11 @@ class JinjaToJS(object):
 
         if kwargs.get(OPTION_USE_OK_WRAPPER):
             self._add_truthy_helper()
-            self.output.write(OK_FUNCTION_START)
+            self.output.write('__ok(')
 
         if node.name not in self.stored_names and node.ctx != 'store':
             self.output.write(CONTEXT_NAME)
-            self.output.write(PROPERTY_ACCESSOR)
+            self.output.write('.')
 
         if node.ctx == 'store':
             self.stored_names.add(node.name)
@@ -189,7 +167,7 @@ class JinjaToJS(object):
         self.output.write(node.name)
 
         if kwargs.get(OPTION_USE_OK_WRAPPER):
-            self.output.write(PAREN_END)
+            self.output.write(')')
 
         if not kwargs.get(OPTION_NO_INTERPOLATE):
             self.output.write(INTERPOLATION_END)
@@ -203,8 +181,24 @@ class JinjaToJS(object):
         else:
             with option(kwargs, OPTION_NO_INTERPOLATE):
                 self._process_node(node.node, **kwargs)
-                self.output.write(PROPERTY_ACCESSOR)
+                self.output.write('.')
                 self.output.write(node.attr)
+
+        if not kwargs.get(OPTION_NO_INTERPOLATE):
+            self.output.write(INTERPOLATION_END)
+
+    def _process_getitem(self, node, **kwargs):
+        if not kwargs.get(OPTION_NO_INTERPOLATE):
+            self.output.write(INTERPOLATION_START)
+
+        if is_loop_helper(node):
+            self._process_loop_helper(node, **kwargs)
+        else:
+            with option(kwargs, OPTION_NO_INTERPOLATE):
+                self._process_node(node.node, **kwargs)
+                self.output.write('[')
+                self._process_node(node.arg, **kwargs)
+                self.output.write(']')
 
         if not kwargs.get(OPTION_NO_INTERPOLATE):
             self.output.write(INTERPOLATION_END)
@@ -215,20 +209,20 @@ class JinjaToJS(object):
         previous_stored_names = self.stored_names.copy()
 
         self.output.write(EXECUTE_START)
-        self.output.write(EACH_START)
+        self.output.write('_.each(')
 
         if is_method_call(node.iter, dict.keys.__name__):
-            self.output.write(KEYS_START)
+            self.output.write('_.keys(')
 
         with option(kwargs, OPTION_NO_INTERPOLATE):
             self._process_node(node.iter, **kwargs)
 
         if is_method_call(node.iter, dict.keys.__name__):
-            self.output.write(PAREN_END)
+            self.output.write(')')
 
-        self.output.write(COMMA)
-        self.output.write(FUNCTION)
-        self.output.write(PAREN_START)
+        self.output.write(',')
+        self.output.write('function')
+        self.output.write('(')
 
         # javascript iterations put the value first, then the key
         if isinstance(node.target, nodes.Tuple):
@@ -239,8 +233,15 @@ class JinjaToJS(object):
         with option(kwargs, OPTION_NO_INTERPOLATE):
             self._process_node(node.target, **kwargs)
 
-        self.output.write(PAREN_END)
-        self.output.write(BLOCK_OPEN)
+        self.output.write(')')
+        self.output.write('{')
+
+        if node.test:
+            self.output.write('if (!(')
+            with option(kwargs, OPTION_NO_INTERPOLATE):
+                self._process_node(node.test, **kwargs)
+            self.output.write(')) { return; }')
+
         self.output.write(EXECUTE_END)
 
         assigns = node.target.items if isinstance(node.target, nodes.Tuple) else [node.target]
@@ -250,9 +251,9 @@ class JinjaToJS(object):
                 self._process_node(n, **kwargs)
 
         self.output.write(EXECUTE_START)
-        self.output.write(BLOCK_CLOSE)
-        self.output.write(PAREN_END)
-        self.output.write(TERMINATOR)
+        self.output.write('}')
+        self.output.write(')')
+        self.output.write(';')
         self.output.write(EXECUTE_END)
 
         # restore the stored names
@@ -263,14 +264,14 @@ class JinjaToJS(object):
         with option(kwargs, OPTION_NO_INTERPOLATE):
             if not kwargs.get(OPTION_INSIDE_IF):
                 self.output.write(EXECUTE_START)
-            self.output.write(IF)
-            self.output.write(PAREN_START)
+            self.output.write('if')
+            self.output.write('(')
 
             with option(kwargs, OPTION_USE_OK_WRAPPER):
                 self._process_node(node.test, **kwargs)
 
-            self.output.write(PAREN_END)
-            self.output.write(BLOCK_OPEN)
+            self.output.write(')')
+            self.output.write('{')
             self.output.write(EXECUTE_END)
 
         # body
@@ -280,14 +281,14 @@ class JinjaToJS(object):
         # no else
         if not node.else_:
             self.output.write(EXECUTE_START)
-            self.output.write(BLOCK_CLOSE)
+            self.output.write('}')
             self.output.write(EXECUTE_END)
 
         # with an else
         else:
             self.output.write(EXECUTE_START)
-            self.output.write(BLOCK_CLOSE)
-            self.output.write(ELSE)
+            self.output.write('}')
+            self.output.write(' else ')
 
             # else if
             if isinstance(node.else_[0], nodes.If):
@@ -295,33 +296,33 @@ class JinjaToJS(object):
                     for n in node.else_:
                         self._process_node(n, **kwargs)
             else:
-                self.output.write(BLOCK_OPEN)
+                self.output.write('{')
                 self.output.write(EXECUTE_END)
                 for n in node.else_:
                     self._process_node(n, **kwargs)
                 self.output.write(EXECUTE_START)
-                self.output.write(BLOCK_CLOSE)
+                self.output.write('}')
                 self.output.write(EXECUTE_END)
 
     def _process_not(self, node, **kwargs):
-        self.output.write(NOT)
+        self.output.write('!')
         self._process_node(node.node, **kwargs)
 
     def _process_or(self, node, **kwargs):
         self._process_node(node.left, **kwargs)
-        self.output.write(OR)
+        self.output.write(' || ')
         self._process_node(node.right, **kwargs)
 
     def _process_and(self, node, **kwargs):
         self._process_node(node.left, **kwargs)
-        self.output.write(AND)
+        self.output.write(' && ')
         self._process_node(node.right, **kwargs)
 
     def _process_tuple(self, node, **kwargs):
         for i, item in enumerate(node.items):
             self._process_node(item, **kwargs)
             if i < len(node.items) - 1:
-                self.output.write(COMMA)
+                self.output.write(',')
 
     def _process_call(self, node, **kwargs):
         if is_method_call(node, DICT_ITER_METHODS):
@@ -338,17 +339,17 @@ class JinjaToJS(object):
 
     def _process_assign(self, node, **kwargs):
         self.output.write(EXECUTE_START)
-        self.output.write(VAR)
+        self.output.write('var ')
 
         with option(kwargs, OPTION_NO_INTERPOLATE):
             self._process_node(node.target, **kwargs)
 
-        self.output.write(ASSIGN)
+        self.output.write(' = ')
 
         with option(kwargs, OPTION_NO_INTERPOLATE):
             self._process_node(node.node, **kwargs)
 
-        self.output.write(TERMINATOR)
+        self.output.write(';')
         self.output.write(EXECUTE_END)
 
     def _process_scope(self, node, **kwargs):
@@ -360,7 +361,7 @@ class JinjaToJS(object):
         node.body = [x for x in node.body if not isinstance(x, nodes.Assign)]
 
         self.output.write(EXECUTE_START)
-        self.output.write(IIFE_START)
+        self.output.write('(function () {')
         self.output.write(EXECUTE_END)
 
         with self._scoped_variables(assigns, **kwargs):
@@ -368,7 +369,7 @@ class JinjaToJS(object):
                 self._process_node(node, **kwargs)
 
         self.output.write(EXECUTE_START)
-        self.output.write(IIFE_END)
+        self.output.write('})();')
         self.output.write(EXECUTE_END)
 
         # restore previous stored names
@@ -382,19 +383,19 @@ class JinjaToJS(object):
 
             if use_is_equal:
                 if operand == 'ne':
-                    self.output.write(NOT)
-                self.output.write(IS_EQUAL_START)
+                    self.output.write('!')
+                self.output.write('_.isEqual(')
 
             self._process_node(node.expr, **kwargs)
 
             if use_is_equal:
-                self.output.write(COMMA)
+                self.output.write(',')
 
             for n in node.ops:
                 self._process_node(n, **kwargs)
 
             if use_is_equal:
-                self.output.write(PAREN_END)
+                self.output.write(')')
 
     def _process_operand(self, node, **kwargs):
         operand = OPERANDS.get(node.op)
@@ -407,37 +408,76 @@ class JinjaToJS(object):
         self.output.write(json.dumps(node.value))
 
     def _process_list(self, node, **kwargs):
-        self.output.write(ARRAY_OPEN)
+        self.output.write('[')
         for i, item in enumerate(node.items):
             self._process_node(item, **kwargs)
             if i < len(node.items) - 1:
-                self.output.write(COMMA)
-        self.output.write(ARRAY_CLOSE)
+                self.output.write(',')
+        self.output.write(']')
 
     def _process_test(self, node, **kwargs):
         with option(kwargs, OPTION_USE_OK_WRAPPER, False):
             if node.name in ('defined', 'undefined'):
-                self.output.write(PAREN_START)
-                self.output.write(TYPEOF)
+                self.output.write('(')
+                self.output.write('typeof ')
                 with option(kwargs, OPTION_NO_INTERPOLATE):
                     self._process_node(node.node, **kwargs)
-                self.output.write(NOT_EQUAL if node.name == 'defined' else EQUAL)
-                self.output.write(STR_UNDEFINED)
-                self.output.write(PAREN_END)
+                self.output.write(' !== ' if node.name == 'defined' else ' === ')
+                self.output.write('"undefined"')
+                self.output.write(')')
             else:
                 raise Exception('Unsupported test %s' % node.name)
 
     def _process_include(self, node, **kwargs):
         self.output.write(INTERPOLATION_SAFE_START)
         self.output.write(self.include_fn_name)
-        self.output.write(PAREN_START)
+        self.output.write('(')
         with option(kwargs, OPTION_NO_INTERPOLATE, True):
             self._process_node(node.template, **kwargs)
-        self.output.write(PAREN_END)
-        self.output.write(PAREN_START)
+        self.output.write(')')
+        self.output.write('(')
         self.output.write(CONTEXT_NAME)
-        self.output.write(PAREN_END)
+        self.output.write(')')
         self.output.write(INTERPOLATION_END)
+
+    def _process_add(self, node, **kwargs):
+        self._process_math(node, math_operator=' + ', **kwargs)
+
+    def _process_sub(self, node, **kwargs):
+        self._process_math(node, math_operator=' - ', **kwargs)
+
+    def _process_div(self, node, **kwargs):
+        self._process_math(node, math_operator=' / ', **kwargs)
+
+    def _process_floordiv(self, node, **kwargs):
+        self._process_math(node, math_operator=' / ', function='Math.floor', **kwargs)
+
+    def _process_mul(self, node, **kwargs):
+        self._process_math(node, math_operator=' * ', **kwargs)
+
+    def _process_mod(self, node, **kwargs):
+        self._process_math(node, math_operator=' % ', **kwargs)
+
+    def _process_math(self, node, math_operator=None, function=None, **kwargs):
+        if not kwargs.get(OPTION_NO_INTERPOLATE):
+            if kwargs.get(OPTION_OUTPUT):
+                self.output.write(INTERPOLATION_START)
+            else:
+                self.output.write(EXECUTE_START)
+
+        if function:
+            self.output.write(function)
+            self.output.write('(')
+
+        self._process_node(node.left, **kwargs)
+        self.output.write(math_operator)
+        self._process_node(node.right, **kwargs)
+
+        if function:
+            self.output.write(')')
+
+        if not kwargs.get(OPTION_NO_INTERPOLATE):
+            self.output.write(EXECUTE_END)
 
     def _process_loop_helper(self, node, **kwargs):
         if node.attr == LOOP_HELPER_INDEX:
@@ -474,19 +514,19 @@ class JinjaToJS(object):
 
             # save previous context value
             self.output.write(EXECUTE_START)
-            self.output.write(VAR)
+            self.output.write('var ')
             self.output.write(tmp_var)
-            self.output.write(ASSIGN)
+            self.output.write(' = ')
             self.output.write(CONTEXT_NAME)
-            self.output.write(PROPERTY_ACCESSOR)
+            self.output.write('.')
             self.output.write(name)
-            self.output.write(TERMINATOR)
+            self.output.write(';')
 
             # add new value to context
             self.output.write(CONTEXT_NAME)
-            self.output.write(PROPERTY_ACCESSOR)
+            self.output.write('.')
             self.output.write(name)
-            self.output.write(ASSIGN)
+            self.output.write(' = ')
 
             if is_assign_node:
                 with option(kwargs, OPTION_NO_INTERPOLATE):
@@ -494,7 +534,7 @@ class JinjaToJS(object):
             else:
                 self.output.write(node.name)
 
-            self.output.write(TERMINATOR)
+            self.output.write(';')
             self.output.write(EXECUTE_END)
 
             tmp_vars.append((tmp_var, name))
@@ -505,9 +545,9 @@ class JinjaToJS(object):
         for tmp_var, name in tmp_vars:
             self.output.write(EXECUTE_START)
             self.output.write(CONTEXT_NAME)
-            self.output.write(PROPERTY_ACCESSOR)
+            self.output.write('.')
             self.output.write(name)
-            self.output.write(ASSIGN)
+            self.output.write(' = ')
             self.output.write(tmp_var)
-            self.output.write(TERMINATOR)
+            self.output.write(';')
             self.output.write(EXECUTE_END)
