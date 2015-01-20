@@ -1,3 +1,7 @@
 {% for value in values %}
     {{ value }}
 {% endfor %}
+
+{% for value in values if value % 2 == 0 %}
+    {{ value }}
+{% endfor %}

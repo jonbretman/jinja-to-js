@@ -70,6 +70,13 @@ Iteration is supported by using the `_.each` function. The `dict` methods `items
 {% endfor %}
 ```
 
+Filtered iteration is also supported.
+```jinja
+{% for number in numbers if number % 2 == 0 %}
+    {{ number }}
+{% endfor %}
+```
+
 ##### Loop Helpers
 [Jinja Docs](http://jinja.pocoo.org/docs/dev/templates/#for)
 

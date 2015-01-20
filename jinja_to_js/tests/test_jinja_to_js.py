@@ -56,7 +56,7 @@ class Tests(unittest.TestCase):
         ))
 
     def test_iteration_list(self):
-        self._run_test('iteration_list.jinja', values=[1, 2, 3])
+        self._run_test('iteration_list.jinja', values=[1, 2, 3, 4, 5, 6])
 
     def test_iteration_keys(self):
         self._run_test('iteration_keys.jinja', thing=dict(
@@ -70,7 +70,7 @@ class Tests(unittest.TestCase):
         self._run_test('set.jinja')
 
     def test_safe_filter(self):
-        self._run_test('safe_filter.jinja', foo='&lt;div&gt;')
+        self._run_test('safe_filter.jinja', foo='&lt;div&gt;', obj=dict(key='&lt;div&gt;'))
 
     def test_conditions(self):
         self._run_test('conditions.jinja',
