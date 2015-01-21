@@ -109,6 +109,9 @@ class Tests(unittest.TestCase):
     def test_math(self):
         self._run_test('math.jinja')
 
+    def test_extends(self):
+        self._run_test('extends.jinja')
+
     def _run_test(self, name, additional=None, **kwargs):
 
         tmp_file_paths = []

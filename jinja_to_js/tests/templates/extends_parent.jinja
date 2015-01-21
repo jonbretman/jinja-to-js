@@ -1,0 +1,12 @@
+{% extends 'extends_grandparent.jinja' %}
+
+Should not be output.
+
+{% block two %}
+    two parent
+{% endblock %}
+
+{% block three %}
+    three parent
+    {{ super() }}
+{% endblock %}

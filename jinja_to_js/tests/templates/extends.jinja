@@ -1,0 +1,8 @@
+{% extends 'extends_parent.jinja' %}
+
+Should not be output.
+
+{% block four %}
+    four child
+    {{ super() }}
+{% endblock four %}
