@@ -140,6 +140,25 @@ function render(name, context) {
 }
 ```
 
+#### Template Inheritance [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#template-inheritance)
+
+Template inheritance is supported, including the `{{ super() }}` function. The name of the template to be extended from must be a string literal as it needs to be loaded at compile time.
+
+**Parent**
+```jinja
+{% block content %}
+    The default content.
+{% endblock
+```
+
+**Child**
+```jinja
+{% block content %}
+    {{ super() }}
+    Additional content.
+{% endblock %}
+```
+
 #### Comments [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#comments)
 
 Jinja comments are ignored by parser API so do not show up in the resulting Underscore template. HTML comments are preserved though.
