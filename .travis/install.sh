@@ -7,12 +7,14 @@ set -x
 sudo add-apt-repository -y ppa:fkrull/deadsnakes
 sudo apt-get -y update
 
+# install node
+sudo add-apt-repository -y ppa:chris-lea/node.js
+sudo apt-get -y update
+sudo apt-get install -y nodejs
+
 case "${TOX_ENV}" in
     py26)
         sudo apt-get install python2.6 python2.6-dev
-        ;;
-    py32)
-        sudo apt-get install python3.2 python3.2-dev
         ;;
     py33)
         sudo apt-get install python3.3 python3.3-dev

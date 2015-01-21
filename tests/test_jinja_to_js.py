@@ -5,10 +5,28 @@ import subprocess
 from os.path import abspath, join, dirname
 import tempfile
 import unittest
-from nose.tools import eq_ as equal
+from jinja2 import nodes
+import pytest
 from jinja2.environment import Environment
 from jinja2.loaders import FileSystemLoader
-from jinja_to_js import JinjaToJS
+from jinja_to_js import JinjaToJS, is_method_call
+
+
+if "check_output" not in dir( subprocess ):
+    def check_output(*popenargs, **kwargs):
+        if 'stdout' in kwargs:
+            raise ValueError('stdout argument not allowed, it will be overridden.')
+        process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+        output, unused_err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            cmd = kwargs.get("args")
+            if cmd is None:
+                cmd = popenargs[0]
+            raise subprocess.CalledProcessError(retcode, cmd)
+        return output
+else:
+    check_output = subprocess.check_output
 
 
 class Tests(unittest.TestCase):
@@ -20,6 +38,68 @@ class Tests(unittest.TestCase):
     def setUp(self):
         self.loader = FileSystemLoader(self.TEMPLATE_PATH)
         self.env = Environment(loader=self.loader, extensions=['jinja2.ext.with_'])
+
+    def test_constructor_exceptions(self):
+
+        with pytest.raises(ValueError) as e:
+            JinjaToJS()
+
+        assert str(e.value) == 'Either a template_name or template_string must be provided.'
+
+    def test_is_method_call(self):
+        node = self.env.parse('{{ foo() }}').find(nodes.Call)
+        assert is_method_call(node, 'foo') is True
+        assert is_method_call(node, 'bar') is False
+
+        node = self.env.parse('{{ foo }}').find(nodes.Name)
+        assert is_method_call(node, 'foo') is False
+
+        node = nodes.Call()
+        node.node = None
+        assert is_method_call(node, 'foo') is False
+
+        node = self.env.parse('{{ foo.bar.baz() }}').find(nodes.Call)
+        assert is_method_call(node, 'baz') is True
+        assert is_method_call(node, 'bar') is False
+        assert is_method_call(node, 'foo') is False
+        assert is_method_call(node, ('foo', 'bar', 'baz')) is True
+
+        node = self.env.parse('{{ foo["bar"]() }}').find(nodes.Call)
+        assert is_method_call(node, 'bar') is True
+
+    def test_exception_raised_for_unknown_node(self):
+        compiler = JinjaToJS(template_string='hello')
+
+        class FakeNode(object):
+            pass
+
+        fake_node = FakeNode()
+
+        with pytest.raises(Exception) as e:
+            compiler._process_node(fake_node)
+
+        assert str(e.value) == 'Unknown node %s' % fake_node
+
+    def test_exception_raised_for_unknown_test(self):
+        with pytest.raises(Exception) as e:
+            JinjaToJS(template_string='{% if foo is someunknowntest %}{% endif %}')
+        assert str(e.value) == 'Unsupported test: someunknowntest'
+
+    def test_exception_raised_for_unknown_filter(self):
+        with pytest.raises(Exception) as e:
+            JinjaToJS(template_string='{{ something|somefilter() }}')
+        assert str(e.value) == 'Unsupported filter: somefilter'
+
+    def test_super_called_outside_of_block(self):
+        with pytest.raises(Exception) as e:
+            JinjaToJS(template_string='{% block foo %}{{ super() }}{% endblock %}')
+        assert str(e.value) == 'super() called outside of a block with a parent.'
+
+    def test_call_node(self):
+        JinjaToJS(template_string='{{ foo() }}').get_output() == '<%- context.foo(); %>'
+        JinjaToJS(template_string='{{ foo(1,2,3) }}').get_output() == '<%- context.foo(1,2,3); %>'
+        JinjaToJS(template_string='{{ foo(a,b,c) }}').get_output() == '<%- context.foo(a,b,c); %>'
+        JinjaToJS(template_string='{{ foo.bar() }}').get_output() == '<%- context.foo.bar(); %>'
 
     def test_if(self):
         self._run_test('if.jinja', foo=False, bar=True)
@@ -35,11 +115,12 @@ class Tests(unittest.TestCase):
                        ))
 
     def test_iteration_iteritems(self):
-        self._run_test('iteration_iteritems.jinja', thing=dict(
-            one='one',
-            two='two',
-            three='three'
-        ))
+        if hasattr(dict, 'iteritems'):
+            self._run_test('iteration_iteritems.jinja', thing=dict(
+                one='one',
+                two='two',
+                three='three'
+            ))
 
     def test_iteration_items(self):
         self._run_test('iteration_items.jinja', thing=dict(
@@ -112,6 +193,13 @@ class Tests(unittest.TestCase):
     def test_extends(self):
         self._run_test('extends.jinja')
 
+    def test_logic(self):
+        self._run_test('logic.jinja', foo=True, bar=True, baz=True)
+        self._run_test('logic.jinja', foo=True, bar=True, baz=False)
+        self._run_test('logic.jinja', foo=True, bar=False, baz=True)
+        self._run_test('logic.jinja', foo=False, bar=True, baz=True)
+        self._run_test('logic.jinja', foo=False, bar=False, baz=False)
+
     def _run_test(self, name, additional=None, **kwargs):
 
         tmp_file_paths = []
@@ -125,8 +213,7 @@ class Tests(unittest.TestCase):
         template_args = [arg]
 
         # create a temp file containing the data
-        data_file, data_file_path = tempfile.mkstemp()
-        os.fdopen(data_file, 'w').write(json.dumps(kwargs))
+        data_file_path = self._write_to_temp_file(json.dumps(kwargs))
 
         # if additional template are required e.g. for includes then create those too
         if additional:
@@ -137,7 +224,7 @@ class Tests(unittest.TestCase):
 
         # get the result of rendering the underscore template
         try:
-            js_result = subprocess.check_output(
+            js_result = check_output(
                 ['node',
                  self.NODE_SCRIPT_PATH]
                 + template_args +
@@ -150,15 +237,25 @@ class Tests(unittest.TestCase):
             for path in tmp_file_paths:
                 os.unlink(path)
 
+        jinja_result = jinja_result.strip()
+        js_result = js_result.strip()
+
+        if isinstance(js_result, bytes):
+            js_result = js_result.decode('utf8')
+
         # check the jinja result and the underscore result are the same
-        equal(jinja_result.strip(), js_result.strip())
+        assert jinja_result == js_result
 
     def _compile_js_template(self, name):
-        print name
         underscore_template_str = JinjaToJS(self.env, template_name=name).get_output()
-        print underscore_template_str
+        temp_file_path = self._write_to_temp_file(underscore_template_str)
+        return name + ':' + temp_file_path, temp_file_path
+
+    def _write_to_temp_file(self, data):
         fd, file_path = tempfile.mkstemp()
-        os.fdopen(fd, 'w').write(
-            underscore_template_str
-        )
-        return name + ':' + file_path, file_path
+        f = os.fdopen(fd, 'w')
+        f.write(data)
+        f.flush()
+        os.fsync(fd)
+        f.close()
+        return file_path

@@ -3,7 +3,16 @@ var fs = require('fs');
 
 var args = process.argv;
 var templates = {};
-var data = JSON.parse(readFile(args[args.length - 1]));
+
+var dataFileName = args[args.length - 1];
+var dataFileText = readFile(dataFileName);
+
+try {
+    var data = JSON.parse(dataFileText);
+} catch (e) {
+    throw new Error('Unable to parse data ' + dataFileText + ' from file ' + dataFileName);
+}
+
 var mainTemplate, i, parts;
 
 for (i = 2; i < args.length - 1; i++) {
@@ -22,7 +31,11 @@ data.include = function (name) {
 process.stdout.write(templates[mainTemplate](data));
 
 function readFile(name) {
-    return fs.readFileSync(name, 'utf8');
+    try {
+        return fs.readFileSync(name, 'utf8');
+    } catch (e) {
+        throw new Error('Unable to read file ' + name);
+    }
 }
 
 function parseTemplateArgument(str) {
