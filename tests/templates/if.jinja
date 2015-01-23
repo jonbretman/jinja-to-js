@@ -17,3 +17,11 @@
 {% elif bar %}
     <h3>will be output</h3>
 {% endif %}
+
+{% if foo %}
+    {% if bar %}
+        foo and bar
+    {% else %}
+        foo and not bar
+    {% endif %}
+{% endif %}

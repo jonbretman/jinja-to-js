@@ -11,10 +11,9 @@ setup(
     license='Python',
     packages=find_packages(),
     include_package_data=True,
-    test_suite='nose.collector',
-    tests_require=['nose'],
     zip_safe=False,
     install_requires=[
-        'jinja2'
+        'jinja2',
+        'six'
     ]
 )

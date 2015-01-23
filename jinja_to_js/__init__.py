@@ -1,20 +1,10 @@
 import contextlib
 
-from cStringIO import StringIO
 import json
-from jinja2 import nodes, Environment
 
+from jinja2 import Environment, nodes
 
-def compile_string(template_str, environment=None):
-    """
-    Compiles a Jinja template string into an Underscore template.
-    Useful for quick testing on the command line.
-    """
-
-    if environment is None:
-        environment = Environment(extensions=['jinja2.ext.with_'])
-
-    return JinjaToJS(environment=environment, template_string=template_str).get_output()
+import six
 
 
 OPERANDS = {
@@ -37,10 +27,10 @@ function __ok(o) {
 """
 
 DICT_ITER_METHODS = (
-    dict.iteritems.__name__,
-    dict.items.__name__,
-    dict.values.__name__,
-    dict.keys.__name__
+    'iteritems',
+    'items',
+    'values',
+    'keys'
 )
 
 STATE_DEFAULT = 0
@@ -76,7 +66,7 @@ def option(current_kwargs, **kwargs):
     then restoring it to whatever it was before.
     """
 
-    tmp_kwargs = {key: current_kwargs.get(key) for key, value in kwargs.items()}
+    tmp_kwargs = dict((key, current_kwargs.get(key)) for key, value in kwargs.items())
     current_kwargs.update(kwargs)
     yield
     current_kwargs.update(tmp_kwargs)
@@ -98,6 +88,10 @@ def is_method_call(node, method_name):
     elif isinstance(node.node, nodes.Name):
         # e.g. bar()
         method = node.node.name
+
+    elif isinstance(node.node, nodes.Getitem):
+        # e.g. foo["bar"]()
+        method = node.node.arg.value
 
     else:
         return False
@@ -124,11 +118,11 @@ def temp_var_names_generator():
 
 class JinjaToJS(object):
 
-    def __init__(self, environment, template_name=None,
+    def __init__(self, environment=None, template_name=None,
                  template_string=None, include_fn_name='context.include',
                  content_name='context', child_blocks=None):
-        self.environment = environment
-        self.output = StringIO()
+        self.environment = environment or Environment(extensions=['jinja2.ext.with_'])
+        self.output = six.StringIO()
         self.stored_names = set()
         self.temp_var_names = temp_var_names_generator()
         self.include_fn_name = include_fn_name
@@ -137,12 +131,14 @@ class JinjaToJS(object):
         self.child_blocks = child_blocks or {}
 
         if template_name is not None:
-            template_string, _, _ = environment.loader.get_source(environment, template_name)
+            template_string, _, _ = self.environment.loader.get_source(
+                self.environment, template_name
+            )
 
         if not template_string:
             raise ValueError('Either a template_name or template_string must be provided.')
 
-        self.ast = environment.parse(template_string)
+        self.ast = self.environment.parse(template_string)
 
         try:
             for node in self.ast.body:
@@ -177,7 +173,7 @@ class JinjaToJS(object):
 
                 # otherwise we have seen this block before, so we need to find the last
                 # super_block and add the block from this template to the end.
-                block = self.child_blocks[b.name]
+                block = self.child_blocks.get(b.name)
                 while hasattr(block, 'super_block'):
                     block = block.super_block
                 block.super_block = b
@@ -194,22 +190,39 @@ class JinjaToJS(object):
         # Raise an exception so we stop parsing this template
         raise ExtendsException
 
-    def _process_block(self, node, child_block=None, **kwargs):
+    def _process_block(self, node, **kwargs):
         """
         Processes a block e.g. `{% block my_block %}{% endblock %}`
         """
 
-        if not child_block:
+        # check if this node already has a 'super_block' attribute
+        if not hasattr(node, 'super_block'):
+
+            # since it doesn't it must be the last block in the inheritance chain
+            node.super_block = None
+
+            # see if there has been a child block defined - if there is this
+            # will be the first block in the inheritance chain
             child_block = self.child_blocks.get(node.name)
 
-        if not child_block:
-            for n in node.body:
-                self._process_node(n, **kwargs)
-        else:
-            if not hasattr(child_block, 'super_block'):
-                child_block.super_block = node
-            for n in child_block.body:
-                self._process_node(n, super_block=child_block.super_block, **kwargs)
+            if child_block:
+
+                # we have child nodes so we need to set `node` as the
+                # super of the last one in the chain
+                last_block = child_block
+                while hasattr(last_block, 'super_block'):
+                    last_block = child_block.super_block
+
+                # once we have found it, set this node as it's super block
+                last_block.super_block = node
+
+                # this is the node we want to process as it's the first in the inheritance chain
+                node = child_block
+
+        # process the block passing the it's super along, if this block
+        # calls super() it will be handled by `_process_call`
+        for n in node.body:
+            self._process_node(n, super_block=node.super_block, **kwargs)
 
     def _process_output(self, node, **kwargs):
         """
@@ -268,13 +281,10 @@ class JinjaToJS(object):
         """
 
         with self._interpolation():
-            if is_loop_helper(node):
-                self._process_loop_helper(node, **kwargs)
-            else:
-                self._process_node(node.node, **kwargs)
-                self.output.write('[')
-                self._process_node(node.arg, **kwargs)
-                self.output.write(']')
+            self._process_node(node.node, **kwargs)
+            self.output.write('[')
+            self._process_node(node.arg, **kwargs)
+            self.output.write(']')
 
     def _process_for(self, node, **kwargs):
         """
@@ -412,20 +422,34 @@ class JinjaToJS(object):
 
     def _process_call(self, node, super_block=None, **kwargs):
         if is_method_call(node, DICT_ITER_METHODS):
+            # special case for dict methods
             self._process_node(node.node.node, **kwargs)
         elif is_method_call(node, 'super'):
+            # special case for the super() method which is available inside blocks
             if not super_block:
                 raise Exception('super() called outside of a block with a parent.')
-            self._process_node(super_block, child_block=super_block, **kwargs)
+            self._process_node(super_block, **kwargs)
         else:
-            raise Exception('Usage of call with unknown method %s: %s' % (node.node.attr, node))
+            # just a normal function call on a context variable
+            with self._interpolation():
+                self._process_node(node.node, **kwargs)
+                self.output.write('(')
+
+                # process the args
+                for i, arg in enumerate(node.args):
+                    self._process_node(arg, **kwargs)
+                    if i < len(node.args) - 1:
+                        self.output.write(',')
+
+                # close the function call
+                self.output.write(');')
 
     def _process_filter(self, node, **kwargs):
         if node.name == 'safe':
             with self._interpolation(safe=True):
                 self._process_node(node.node, **kwargs)
         else:
-            raise Exception('Unsupported filter %s', node)
+            raise Exception('Unsupported filter: %s' % node.name)
 
     def _process_assign(self, node, **kwargs):
         with self._execution():
@@ -479,10 +503,7 @@ class JinjaToJS(object):
                 self.output.write(')')
 
     def _process_operand(self, node, **kwargs):
-        operand = OPERANDS.get(node.op)
-        if operand is None:
-            raise Exception('Unknown operand %s' % node.op)
-        self.output.write(operand)
+        self.output.write(OPERANDS.get(node.op))
         self._process_node(node.expr, **kwargs)
 
     def _process_const(self, node, **_):
@@ -507,7 +528,7 @@ class JinjaToJS(object):
                 self.output.write('"undefined"')
                 self.output.write(')')
             else:
-                raise Exception('Unsupported test %s' % node.name)
+                raise Exception('Unsupported test: %s' % node.name)
 
     def _process_include(self, node, **kwargs):
         with self._interpolation(safe=True):
@@ -581,7 +602,7 @@ class JinjaToJS(object):
         if getattr(self, '_python_bool_function_added', False):
             return
 
-        output = StringIO()
+        output = six.StringIO()
         output.write(PYTHON_BOOL_EVAL_FUNCTION)
         output.write(self.output.getvalue())
         self.output = output
@@ -593,17 +614,17 @@ class JinjaToJS(object):
         Context manager for executing some JavaScript inside a template.
         """
 
-        def close():
-            pass
+        did_start_executing = False
 
         if self.state == STATE_DEFAULT:
+            did_start_executing = True
             self.output.write('<% ')
             self.state = STATE_EXECUTING
 
-            def close():
-                if self.state == STATE_EXECUTING:
-                    self.output.write(' %>')
-                    self.state = STATE_DEFAULT
+        def close():
+            if did_start_executing and self.state == STATE_EXECUTING:
+                self.output.write(' %>')
+                self.state = STATE_DEFAULT
 
         yield close
         close()
@@ -611,17 +632,17 @@ class JinjaToJS(object):
     @contextlib.contextmanager
     def _interpolation(self, safe=False):
 
-        def close():
-            pass
+        did_start_interpolating = False
 
         if self.state == STATE_DEFAULT:
+            did_start_interpolating = True
             self.output.write('<%=' if safe else '<%- ')
             self.state = STATE_INTERPOLATING
 
-            def close():
-                if self.state == STATE_INTERPOLATING:
-                    self.output.write(' %>')
-                    self.state = STATE_DEFAULT
+        def close():
+            if did_start_interpolating and self.state == STATE_INTERPOLATING:
+                self.output.write(' %>')
+                self.state = STATE_DEFAULT
 
         yield close
         close()
@@ -641,7 +662,7 @@ class JinjaToJS(object):
             name = node.target.name if is_assign_node else node.name
 
             # create a temp variable name
-            tmp_var = self.temp_var_names.next()
+            tmp_var = next(self.temp_var_names)
 
             # save previous context value
             with self._execution():
