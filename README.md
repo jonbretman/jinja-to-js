@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/jonbretman/jinja-to-js.svg?branch=master)](https://travis-ci.org/jonbretman/jinja-to-js)
+
 # Jinja to JS
 Converts Jinja2 templates into Underscore/Lo-Dash templates so that they can be used in the browser.
 
