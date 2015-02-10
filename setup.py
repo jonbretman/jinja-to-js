@@ -15,5 +15,10 @@ setup(
     install_requires=[
         'jinja2',
         'six'
-    ]
+    ],
+    entry_points={
+        'console_scripts': [
+            'jinja_to_js = jinja_to_js.__main__:main',
+        ]
+    }
 )
