@@ -13,6 +13,12 @@ try {
     throw new Error('Unable to parse data ' + dataFileText + ' from file ' + dataFileName);
 }
 
+for (var key in data) {
+    if (data[key] === '<<< MAKE ME A FUNCTION >>>') {
+        data[key] = function () {};
+    }
+}
+
 var mainTemplate, i, parts;
 
 for (i = 2; i < args.length - 1; i++) {

@@ -29,6 +29,15 @@ else:
     check_output = subprocess.check_output
 
 
+class Encoder(json.JSONEncoder):
+    def default(self, o):
+        if callable(o):
+            # since JSON cannot encode functions we just need a way of
+            # telling the node script to add one into the context
+            return '<<< MAKE ME A FUNCTION >>>'
+        return super(Encoder, self).default(o)
+
+
 class Tests(unittest.TestCase):
 
     ROOT = abspath(join(dirname(__file__)))
@@ -162,7 +171,10 @@ class Tests(unittest.TestCase):
         self._run_test('loop_helpers.jinja', things=[1, 2, 3, 4, 5, 6])
 
     def test_tests(self):
-        self._run_test('tests.jinja', age=30)
+        self._run_test('tests.jinja',
+                       age=30, fn=lambda x: x, not_a_fn=None, i_am_none=None,
+                       upper_str='HELLO', lower_str='hello',
+                       a_mapping=dict(key='value'))
 
     def test_truthy_falsey_values(self):
         self._run_test('truthy_falsey_values.jinja',
@@ -213,7 +225,7 @@ class Tests(unittest.TestCase):
         template_args = [arg]
 
         # create a temp file containing the data
-        data_file_path = self._write_to_temp_file(json.dumps(kwargs))
+        data_file_path = self._write_to_temp_file(json.dumps(kwargs, cls=Encoder))
 
         # if additional template are required e.g. for includes then create those too
         if additional:
