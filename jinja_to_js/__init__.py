@@ -520,15 +520,71 @@ class JinjaToJS(object):
 
     def _process_test(self, node, **kwargs):
         with option(kwargs, use_python_bool_wrapper=False):
-            if node.name in ('defined', 'undefined'):
-                self.output.write('(')
-                self.output.write('typeof ')
-                self._process_node(node.node, **kwargs)
-                self.output.write(' !== ' if node.name == 'defined' else ' === ')
-                self.output.write('"undefined"')
-                self.output.write(')')
+            method_name = getattr(self, '_process_test_%s' % node.name, None)
+            if callable(method_name):
+                method_name(node, **kwargs)
             else:
                 raise Exception('Unsupported test: %s' % node.name)
+
+    def _process_test_defined(self, node, **kwargs):
+        self.output.write('(typeof ')
+        self._process_node(node.node, **kwargs)
+        self.output.write(' !== "undefined")')
+
+    def _process_test_undefined(self, node, **kwargs):
+        self.output.write('(typeof ')
+        self._process_node(node.node, **kwargs)
+        self.output.write(' === "undefined")')
+
+    def _process_test_callable(self, node, **kwargs):
+        self.output.write('_.isFunction(')
+        self._process_node(node.node, **kwargs)
+        self.output.write(')')
+
+    def _process_test_divisibleby(self, node, **kwargs):
+        self._process_node(node.node, **kwargs)
+        self.output.write(' % ')
+        self._process_node(node.args[0], **kwargs)
+        self.output.write(' === 0')
+
+    def _process_test_even(self, node, **kwargs):
+        self._process_node(node.node, **kwargs)
+        self.output.write(' % 2 === 0')
+
+    def _process_test_odd(self, node, **kwargs):
+        self._process_node(node.node, **kwargs)
+        self.output.write(' % 2 === 1')
+
+    def _process_test_none(self, node, **kwargs):
+        self._process_node(node.node, **kwargs)
+        self.output.write(' === null')
+
+    def _process_test_upper(self, node, **kwargs):
+        self._process_node(node.node, **kwargs)
+        self.output.write('.toUpperCase() === ')
+        self._process_node(node.node, **kwargs)
+
+    def _process_test_lower(self, node, **kwargs):
+        self._process_node(node.node, **kwargs)
+        self.output.write('.toLowerCase() === ')
+        self._process_node(node.node, **kwargs)
+
+    def _process_test_string(self, node, **kwargs):
+        self.output.write('_.isString(')
+        self._process_node(node.node, **kwargs)
+        self.output.write(')')
+
+    def _process_test_mapping(self, node, **kwargs):
+        self.output.write('Object.prototype.toString.call(')
+        self._process_node(node.node, **kwargs)
+        self.output.write(') === "[object Object]"')
+
+    def _process_test_number(self, node, **kwargs):
+        self.output.write('(_.isNumber(')
+        self._process_node(node.node, **kwargs)
+        self.output.write(') && !_.isNaN(')
+        self._process_node(node.node, **kwargs)
+        self.output.write('))')
 
     def _process_include(self, node, **kwargs):
         with self._interpolation(safe=True):
