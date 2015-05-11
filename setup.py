@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='jinja-to-js',
-    version='0.0.13',
+    version='0.0.1',
     description="Turns Jinja templates into Underscore templates that can be run in the browser.",
     keywords='jinja underscore html',
     author='Jon Bretman',
