@@ -1,0 +1,19 @@
+<table>
+    {% for row in items|batch(3) %}
+        <tr>
+            {% for column in row %}
+                <td>{{ column }}</td>
+            {% endfor %}
+        </tr>
+    {% endfor %}
+</table>
+
+<table>
+    {% for row in items|batch(2, 'I am the filler') %}
+        <tr>
+            {% for column in row %}
+                <td>{{ column }}</td>
+            {% endfor %}
+        </tr>
+    {% endfor %}
+</table>

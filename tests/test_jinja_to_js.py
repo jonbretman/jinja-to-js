@@ -35,6 +35,8 @@ class Encoder(json.JSONEncoder):
             # since JSON cannot encode functions we just need a way of
             # telling the node script to add one into the context
             return '<<< MAKE ME A FUNCTION >>>'
+        if hasattr(o, '__dict__'):
+            return o.__dict__
         return super(Encoder, self).default(o)
 
 
@@ -160,7 +162,61 @@ class Tests(unittest.TestCase):
         self._run_test('set.jinja')
 
     def test_safe_filter(self):
-        self._run_test('safe_filter.jinja', foo='&lt;div&gt;', obj=dict(key='&lt;div&gt;'))
+        self._run_test('filters/safe.jinja', foo='&lt;div&gt;', obj=dict(key='&lt;div&gt;'))
+
+    def test_capitalize_filter(self):
+        self._run_test('filters/capitalize.jinja', first_name='jon')
+
+    def test_abs_filter(self):
+        self._run_test('filters/abs.jinja', some_number=5, some_float=5.5)
+
+    def test_batch_filter(self):
+        self._run_test('filters/batch.jinja', items=[
+            'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'
+        ])
+
+    def test_default_filter(self):
+        self._run_test('filters/default.jinja', falsey_value='')
+
+    def test_first_filter(self):
+        self._run_test('filters/first.jinja', list_of_things=[1, 2, 3])
+
+    def test_last_filter(self):
+        self._run_test('filters/last.jinja', list_of_things=[1, 2, 3])
+
+    def test_int_filter(self):
+        self._run_test('filters/int.jinja', a_valid_number='5', not_a_valid_number='cats')
+
+    def test_attr_filter(self):
+        class Foo(object):
+            def __init__(self):
+                self.my_key = 'my value'
+
+        self._run_test('filters/attr.jinja', obj=Foo(), obj_key='my_key')
+
+    def test_length_filter(self):
+        self._run_test('filters/length.jinja', obj=dict(a=1, b=2, c=3), list=[1, 2, 3])
+
+    def test_lower_filter(self):
+        self._run_test('filters/lower.jinja', shouty_text='I AM SHOUTING')
+
+    def test_slice_filter(self):
+        self._run_test('filters/slice.jinja', items=[
+            'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'
+        ])
+
+    def test_title_filter(self):
+        self._run_test('filters/title.jinja', some_text='testing is fun')
+
+    def test_trim_filter(self):
+        self._run_test('filters/trim.jinja', some_text='   so much whitespace   ')
+
+    def test_upper_filter(self):
+        self._run_test('filters/upper.jinja', some_text='make me shouty')
+
+    def test_truncate_filter(self):
+        self._run_test('filters/truncate.jinja',
+                       some_text='I am far too long and need to be truncated.')
 
     def test_conditions(self):
         self._run_test('conditions.jinja',
@@ -181,7 +237,7 @@ class Tests(unittest.TestCase):
                        non_empty_array=[1, 2, 3],
                        empty_array=[],
                        empty_object={},
-                       non_empty_object=dict(one='one'),
+                       non_empty_object=dict(inner_key='one', inner_obj=dict(inner_inner_key=5)),
                        empty_string='',
                        non_empty_string='hello')
 

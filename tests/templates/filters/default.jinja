@@ -1,0 +1,4 @@
+{{ does_not_exist|default }}
+{{ does_not_exist|default('I am the the default') }}
+{{ falsey_value|default('I am the default') }}
+{{ falsey_value|default('I am the the default', True) }}
