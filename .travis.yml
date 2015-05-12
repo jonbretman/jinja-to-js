@@ -1,18 +1,28 @@
-language: c
-os:
-    - linux
-env:
-    matrix:
-        - TOX_ENV=py26
-        - TOX_ENV=py27
-        - TOX_ENV=py33
-        - TOX_ENV=py34
-        - TOX_ENV=pypy
-        - TOX_ENV=pep8
-        - TOX_ENV=py3pep8
+language: python
+
+python:
+  - 2.6
+  - 2.7
+  - 3.3
+  - 3.4
+  - pypy
+  - pypy3
+
+addons:
+  apt:
+    packages:
+    - nodejs
 
 install:
-    - ./.travis/install.sh
+    - "pip install virtualenv"
+    - "virtualenv ~/.venv"
+    - "source ~/.venv/bin/activate"
+    - "pip install tox"
 
 script:
-    - ./.travis/run.sh
+    - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then tox -e py26,pep8; fi
+    - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then tox -e py27,pep8; fi
+    - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then tox -e py33,py3pep8; fi
+    - if [[ $TRAVIS_PYTHON_VERSION == '3.4' ]]; then tox -e py34,py3pep8; fi
+    - if [[ $TRAVIS_PYTHON_VERSION == 'pypy' ]]; then tox -e pypy,pep8; fi
+    - if [[ $TRAVIS_PYTHON_VERSION == 'pypy3' ]]; then tox -e pypy3,py3pep8; fi
