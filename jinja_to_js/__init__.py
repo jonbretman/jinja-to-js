@@ -115,13 +115,13 @@ class JinjaToJS(object):
 
     def __init__(self, environment=None, template_name=None,
                  template_string=None, include_fn_name='context.include',
-                 content_name='context', child_blocks=None):
+                 context_name='context', child_blocks=None):
         self.environment = environment or Environment(extensions=['jinja2.ext.with_'])
         self.output = six.StringIO()
         self.stored_names = set()
         self.temp_var_names = temp_var_names_generator()
         self.include_fn_name = include_fn_name
-        self.context_name = content_name
+        self.context_name = context_name
         self.state = STATE_DEFAULT
         self.child_blocks = child_blocks or {}
         self._runtime_function_cache = []

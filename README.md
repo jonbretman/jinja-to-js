@@ -1,145 +1,131 @@
 [![Build Status](https://travis-ci.org/jonbretman/jinja-to-js.svg?branch=master)](https://travis-ci.org/jonbretman/jinja-to-js)
 
 # Jinja to JS
-Converts Jinja2 templates into Underscore/Lo-Dash templates so that they can be used in the browser.
+Converts [Jinja2](http://jinja.pocoo.org/docs/dev/) templates into Underscore/Lo-Dash templates so that they can be used in the browser.
 
-## How it works
-First the Jinja template is [parsed into an AST](http://jinja.pocoo.org/docs/dev/api/#jinja2.Environment.parse), and then from that an Underscore style template string is created. This string can then be compiled into a JavaScript function using the `_.template` function. Docs for the `_.template` function can be found [here](http://underscorejs.org/#template) for Underscore and [here](https://lodash.com/docs#template) for Lo-Dash. It is important that when the template is compiled the `variable` option is set to `"context"`.
-
-The Underscore/Lo-Dash libraries provides a lot of functional utilities that make implementing the features of Jinja quite easy. As such the compiled template functions require that Underscore/Lo-Dash are available.
+## What is it?
+Jinja2 is a very fast templating language and therefore is ideal for use with Python web framework like Django, however there are many use cases for wanting to share the same template between the server and the browser. Instead of writting a Jinja implementation in JavaScript (there are already a few of those) jinja-to-js used the Python Jinja2 library to parse a template into an AST (http://jinja.pocoo.org/docs/dev/api/#jinja2.Environment.parse) and then in turn uses that AST to generate an Underscore/Lo-Dash template.
 
 ## Example
-```python
-from jinja2.environment import Environment
-from jinja2.loaders import FileSystemLoader
-from jinja_to_js import JinjaToJS
 
-loader = FileSystemLoader('/path/to/templates/')
-environment = Environment(loader=loader, extensions=['jinja2.ext.with_'])
-compiler = JinjaToJS(environment, template_name='my_template.jinja')
-underscore_template = compiler.get_output()
+First install jinja-to-js using `pip`:
+```sh
+$ pip install jinja-to-js
 ```
 
-## Options
-* `environment` (**required**) A Jinja environment with a `loader`.
-* `template_name` The name of the template to convert.
-* `template_string` A Jinja template string.
-* `include_fn_name` The function to call when a template needs to be included.
+Lets assume we have a Jinja template called **names.jinja**.
+```jinja
+{% for name in names %}
+    {{ name }}
+{% endfor %}
+```
+
+We can turn this into an Underscore template using the command line:
+```sh
+$ jinja_to_js -f ./names.jinja -o ./names.underscore
+```
+
+**names.underscore** will now contain:
+```html
+<% _.each(context.names,function(name){ %>
+    <% var __$0 = context.name; context.name = name; %>
+    <%- name %>
+    <% context.name = __$0; %>
+<% }); %>
+```
+
+One of the great things about Underscore/Lo-Dash templates is that they can be pre-compiled into functions as part of a build process which will avoid having to do it in the browser at runtime. There are packages out there for Grunt and Gulp, but here is a very simple example.
+
+```js
+var _ = require('underscore');
+var fs = require('fs');
+var src = fs.readFileSync('names.underscore', 'utf8');
+
+// note that setting the `variable` option to "context" is required
+var js = _.template(src, null, {variable: 'context'}).source;
+
+fs.writeFileSync('names.js', js);
+```
 
 ## Supported Features
+* `if` statements [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#if)
+* `for` [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#for) - see below for supported loop helpers
+* `with` [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#with-statement)
+* `include` [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#include) - see below for example
+* comparisons [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#comparisons)
+* logic [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#logic)
+* tests [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#tests) - see below for supported tests
+* filters [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#builtin-filters) - see below for supported filters
+* assignment [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#assignments)
+* comments [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#comments)
 
-#### If statements [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#if)
+### Supported tests
+* `defined` - [docs](http://jinja.pocoo.org/docs/dev/templates/#defined)
+* `undefined` - [docs](http://jinja.pocoo.org/docs/dev/templates/#undefined)
+* `callable` - [docs](http://jinja.pocoo.org/docs/dev/templates/#callable)
+* `divisibleby` - [docs](http://jinja.pocoo.org/docs/dev/templates/#divisibleby)
+* `even` - [docs](http://jinja.pocoo.org/docs/dev/templates/#even)
+* `odd` - [docs](http://jinja.pocoo.org/docs/dev/templates/#odd)
+* `none` - [docs](http://jinja.pocoo.org/docs/dev/templates/#none)
+* `number` - [docs](http://jinja.pocoo.org/docs/dev/templates/#number)
+* `upper`
+* `lower`
+* `string`
+* `mapping`
 
-Truthy / falsey tests behave as expected so empty lists (JS arrays) or empty dicts (JS objects) are evaluated to be false. This is achieved by using the `_.isEmpty` function.
-```jinja
-{% if foo %}
-    {{ foo }}
-{% endif %}
-```
+### Supported filters
+* `safe` - [docs](http://jinja.pocoo.org/docs/dev/templates/#safe)
+* `capitalize` - [docs](http://jinja.pocoo.org/docs/dev/templates/#capitalize)
+* `abs` - [docs](http://jinja.pocoo.org/docs/dev/templates/#abs)
+* `attr` - [docs](http://jinja.pocoo.org/docs/dev/templates/#attr)
+* `batch` - [docs](http://jinja.pocoo.org/docs/dev/templates/#batch)
+* `default` - [docs](http://jinja.pocoo.org/docs/dev/templates/#default)
+* `first` - [docs](http://jinja.pocoo.org/docs/dev/templates/#first)
+* `int` - [docs](http://jinja.pocoo.org/docs/dev/templates/#int)
+* `last` - [docs](http://jinja.pocoo.org/docs/dev/templates/#last)
+* `length` - [docs](http://jinja.pocoo.org/docs/dev/templates/#length)
+* `lower` - [docs](http://jinja.pocoo.org/docs/dev/templates/#lower)
+* `slice` - [docs](http://jinja.pocoo.org/docs/dev/templates/#slice)
+* `title` - [docs](http://jinja.pocoo.org/docs/dev/templates/#title)
+* `trim` - [docs](http://jinja.pocoo.org/docs/dev/templates/#trim)
+* `upper` - [docs](http://jinja.pocoo.org/docs/dev/templates/#upper)
+* `truncate` - [docs](http://jinja.pocoo.org/docs/dev/templates/#truncate)
 
-
-#### Comparisons [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#comparisons)
-
-
-The comparitors `==`, `!=`, `<`, `>`, `<=`, and `>=` are all supported. Equality checking behaves as expected so for example `[1, 2, 3] == [1, 2, 3]` is true. This achieved by using the `_.isEqual` function.
-```jinja
-{% if foo == 5 %}
-    foo is 5
-{% endif %}
-```
-
-#### Logic [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#logic)
-
-Logic operators `and`, `or`, `not` are all supported.
-```jinja
-{% if not foo and bar or baz %}
-
-{% endif %}
-```
-
-#### Iteration [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#for)
-
-Iteration is supported by using the `_.each` function. The `dict` methods `items`, `iteritems`, `values`, and `keys` all work as expected, which is achieved using the `_.keys` and `_.values` methods.
-```jinja
-{% for thing in things %}
-    {{ thing }}
-{% endfor %}
-
-{% for key, value in my_object.items() %}
-    {{ key }} -> {{ value }}
-{% endfor %}
-```
-
-Filtered iteration is also supported.
-```jinja
-{% for number in numbers if number % 2 == 0 %}
-    {{ number }}
-{% endfor %}
-```
 #### Loop Helpers
 [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#for)
 
-Loop helpers are only supported for lists (JS arrays). The following helpers are supported:
+Loop helpers will only work for lists (JS arrays). The following helpers are supported:
 * `loop.index`
 * `loop.index0`
 * `loop.first`
 * `loop.last`
 * `loop.length`
 
-#### Tests [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#tests)
-
-The only test that is currently supported is `defined` and `undefined`.
-```jinja
-{% if foo is defined %}
-    {{ foo }}
-{% endif %}
-
-{% if foo is undefined %}
-    foo is not defined
-{% endif %}
-```
-
-#### With [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#with-statement)
-
-The `{% with %}` tag is supported for creating a new scope.
-```jinja
-{% with %}
-    {% set foo = True %}
-{% endwith %}
-```
-
-#### Assignment [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#assignments)
-
-Assignment is supported via `{% set %}` although currently only for strings, numbers, booleans, and context variables.
-```jinja
-{% set foo = True %}
-{% set bar = 'some string' %}
-{% set baz = some_context_variable %}
-```
-
 #### Includes [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#include)
 
 Includes are supported by taking the following steps:
 
-* A function dictated by `include_fn_name` is called with the name of the template to be included as the only argument. The default value of `include_fn_name` is `context.include`. This function **MUST** return a compiled template function
-* The returned function is called with the current context as it's only argument.
+* If a template contain an include, for example `{% include 'bar.jinja' %}`, then you must provide a function called `include` on the context object passed to the template. This function will be called with the name of the template to be included and should return the compiled version of this template.
+* The returned template function is called with the current context as it's only argument.
 * The return value of this function is output into the current template.
 
 The following shows a simple example of this in practice.
 ```js
 var templates = {
-    template_1: theCompiledFnForTemplate1,
-    template_2: theCompiledFnForTemplate2
+    'bar': theCompiledFnForBar,
+    'foo': theCompiledFnForFoo
 };
 
 function getTemplate(name) {
-    return templates[name];
+    return templates[name.replace(/\.jinja$/, '')];
 }
 
 function render(name, context) {
     context.include = getTemplate;
     return getTemplate(name)(context);
 }
+
+render('foo');
 ```
 
 #### Template Inheritance [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#template-inheritance)
@@ -159,13 +145,4 @@ Template inheritance is supported, including the `{{ super() }}` function. The n
     {{ super() }}
     Additional content.
 {% endblock %}
-```
-
-#### Comments [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#comments)
-
-Jinja comments are ignored by parser API so do not show up in the resulting Underscore template. HTML comments are preserved though.
-
-```
-{# This comment will not appear in the Underscore template #}
-<!-- This comment will appear in the Underscore template -->
 ```
