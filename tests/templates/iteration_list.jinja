@@ -6,6 +6,12 @@
     {{ value }}
 {% endfor %}
 
+{# explicit list #}
 {% for number in [1, 2, 3, 4, 5] %}
+    {{ number }}
+{% endfor %}
+
+{# explicit tuple #}
+{% for number in (1, 2, 3, 4, 5) %}
     {{ number }}
 {% endfor %}
