@@ -1,9 +1,21 @@
 {% set one = 'one' %}
 {% set two = True %}
 {% set count = 5 %}
+{% set names = ['john', 'paul', 'george', 'ringo'] %}
+{% set cities = ('london', 'paris', 'new york') %}
 
 {{ one }}
+
 {% if two %}
     two is true
 {% endif %}
-{{ count }}
+
+{{ count * 2 }}
+
+{% for name in names %}
+    {{ name }}
+{% endfor %}
+
+{% for city in cities %}
+    {{ city }}
+{% endfor %}

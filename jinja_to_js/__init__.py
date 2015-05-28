@@ -311,11 +311,15 @@ class JinjaToJS(object):
 
             # javascript iterations put the value first, then the key
             if isinstance(node.target, nodes.Tuple):
-                tmp = node.target.items[0]
-                node.target.items[0] = node.target.items[1]
-                node.target.items[1] = tmp
+                if len(node.target.items) > 2:
+                    raise Exception('De-structuring more than 2 items is not supported.')
 
-            self._process_node(node.target, **kwargs)
+                for i, item in enumerate(reversed(node.target.items)):
+                    self._process_node(item, **kwargs)
+                    if i < len(node.target.items) - 1:
+                        self.output.write(',')
+            else:
+                self._process_node(node.target, **kwargs)
 
             self.output.write(')')
             self.output.write('{')
@@ -410,10 +414,12 @@ class JinjaToJS(object):
         self._process_node(node.right, **kwargs)
 
     def _process_tuple(self, node, **kwargs):
+        self.output.write('[')
         for i, item in enumerate(node.items):
             self._process_node(item, **kwargs)
             if i < len(node.items) - 1:
                 self.output.write(',')
+        self.output.write(']')
 
     def _process_call(self, node, super_block=None, **kwargs):
         if is_method_call(node, DICT_ITER_METHODS):
