@@ -425,18 +425,24 @@ class JinjaToJS(object):
         if is_method_call(node, DICT_ITER_METHODS):
             # special case for dict methods
             self._process_node(node.node.node, **kwargs)
+
         elif is_method_call(node, 'super'):
             # special case for the super() method which is available inside blocks
             if not super_block:
                 raise Exception('super() called outside of a block with a parent.')
             self._process_node(super_block, **kwargs)
+
         else:
             # just a normal function call on a context variable
             with self._interpolation():
                 self._process_node(node.node, **kwargs)
                 self.output.write('(')
                 self._process_args(node, **kwargs)
-                self.output.write(');')
+                self.output.write(')')
+
+                # only output the semi-colon if we are not interpolating
+                if self.state != STATE_INTERPOLATING:
+                    self.output.write(';')
 
     def _process_filter(self, node, **kwargs):
         method_name = getattr(self, '_process_filter_%s' % node.name, None)
