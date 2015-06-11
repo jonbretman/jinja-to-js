@@ -123,7 +123,8 @@ class Tests(unittest.TestCase):
                            other_obj=dict(
                                key='value'
                            )
-                       ))
+                       ),
+                       somefunction=lambda *args: '')
 
     def test_iteration_iteritems(self):
         if hasattr(dict, 'iteritems'):
