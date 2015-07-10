@@ -1,10 +1,10 @@
 [![Build Status](https://travis-ci.org/jonbretman/jinja-to-js.svg?branch=master)](https://travis-ci.org/jonbretman/jinja-to-js)
 
 # Jinja to JS
-Converts [Jinja2](http://jinja.pocoo.org/docs/dev/) templates into Underscore/Lo-Dash templates so that they can be used in the browser.
+Converts [Jinja2](http://jinja.pocoo.org/docs/dev/) templates into JavaScript functions so that they can be used in the browser.
 
 ## What is it?
-Jinja2 is a very fast templating language and therefore is ideal for use with Python web framework like Django, however there are many use cases for wanting to share the same template between the server and the browser. Instead of writting a Jinja implementation in JavaScript (there are already a few of those) jinja-to-js used the Python Jinja2 library to parse a template into an AST (http://jinja.pocoo.org/docs/dev/api/#jinja2.Environment.parse) and then in turn uses that AST to generate an Underscore/Lo-Dash template.
+Jinja2 is a very fast templating language and therefore is ideal for use with Python web framework like Django, however there are many use cases for wanting to share the same template between the server and the browser. Instead of writing a Jinja implementation in JavaScript (there are already a few of those) jinja-to-js uses the Python Jinja2 library to parse a template into an AST (http://jinja.pocoo.org/docs/dev/api/#jinja2.Environment.parse) and uses that AST to output a JavasScript function/module.
 
 ## Example
 
@@ -20,32 +20,19 @@ Lets assume we have a Jinja template called **names.jinja**.
 {% endfor %}
 ```
 
-We can turn this into an Underscore template using the command line:
+We can turn this into a JavaScript module like so:
 ```sh
-$ jinja_to_js -f ./names.jinja -o ./names.underscore
+$ jinja_to_js -f ./names.jinja -o ./names.js -m es6
 ```
 
-**names.underscore** will now contain:
-```html
-<% _.each(context.names,function(name){ %>
-    <% var __$0 = context.name; context.name = name; %>
-    <%- name %>
-    <% context.name = __$0; %>
-<% }); %>
-```
-
-One of the great things about Underscore/Lo-Dash templates is that they can be pre-compiled into functions as part of a build process which will avoid having to do it in the browser at runtime. There are packages out there for Grunt and Gulp, but here is a very simple example.
-
+**names.js** will now contain:
 ```js
-var _ = require('underscore');
-var fs = require('fs');
-var src = fs.readFileSync('names.underscore', 'utf8');
-
-// note that setting the `variable` option to "context" is required
-var js = _.template(src, null, {variable: 'context'}).source;
-
-fs.writeFileSync('names.js', js);
+export default function template(context) {
+    /* JS code here */
+};
 ```
+
+The `-m` option specified the module type, which can be `amd`, `commonjs`, `es6` or not provided at all which will result in jinja-to-js just outputting a named JS function.
 
 ## Supported Features
 * `if` statements [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#if)
