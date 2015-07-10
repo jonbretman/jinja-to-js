@@ -1,8 +1,19 @@
 # this function emulates Pythons boolean evaluation e.g. an empty list or object is false
 PYTHON_BOOL_EVAL_FUNCTION = """
 function __ok(o) {
-    var toString = Object.prototype.toString;
-    return !o ? false : toString.call(o).match(/\[object (Array|Object)\]/) ? !_.isEmpty(o) : !!o;
+    if (!o) {
+        return false;
+    }
+    if (Array.isArray(o)) {
+        return o.length > 0;
+    }
+    try {
+        var keys = Object.keys(o);
+    }
+    catch (e) {
+        return !!o;
+    }
+    return keys.length > 0;
 }
 """
 
@@ -14,23 +25,23 @@ function __capitalize(s) {
 
 BATCH_FUNCTION = """
 function __batch(arr, size, fillWith) {
-    var result = _.reduce(arr, function (result, value) {
+    var result = arr.reduce(function (result, value) {
 
-        var curr = _.last(result);
+        var curr = result[result.length - 1];
         if (!curr || curr.length === size) {
             result.push([]);
-            curr = _.last(result);
+            curr = result[result.length - 1];
         }
 
         curr.push(value);
         return result;
     }, []);
 
-    var last = _.last(result);
-    if (last && last.length < size && !_.isUndefined(fillWith)) {
-        _.times(size - last.length, function () {
+    var last = result[result.length - 1];
+    if (last && last.length < size && fillWith !== undefined) {
+        for (var i = 0; i < size - last.length; i++) {
             last.push(fillWith);
-        });
+        }
     }
 
     return result;
@@ -39,19 +50,30 @@ function __batch(arr, size, fillWith) {
 
 DEFAULT_FUNCTION = """
 function __default(obj, defaultValue, boolean) {
-    defaultValue = _.isUndefined(defaultValue) ? '' : defaultValue;
-    boolean = _.isUndefined(boolean) ? false : boolean;
+    defaultValue = defaultValue === undefined ? '' : defaultValue;
+    boolean = boolean === undefined ? false : boolean;
 
-    var toString = Object.prototype.toString;
     var test;
 
     if (boolean === true) {
-        test = !obj ? false :
-                      toString.call(obj).match(/\[object (Array|Object)\]/) ? !_.isEmpty(obj) :
-                                                                              !!obj;
+        if (!obj) {
+            test = false;
+        }
+        else if (Array.isArray(obj)) {
+            test = obj.length > 0;
+        }
+        else {
+            try {
+                var keys = Object.keys(obj);
+                test = keys.length > 0;
+            }
+            catch (e) {
+                test = !!obj;
+            }
+        }
     }
     else {
-        test = !_.isUndefined(obj);
+        test = obj !== undefined;
     }
 
     return test ? obj : defaultValue;
@@ -60,7 +82,7 @@ function __default(obj, defaultValue, boolean) {
 
 INT_FUNCTION = """
 function __int(value, defaultValue) {
-    defaultValue = _.isUndefined(defaultValue) ? 0 : defaultValue;
+    defaultValue = defaultValue === undefined ? 0 : defaultValue;
     value = parseInt(value, 10);
     return isNaN(value) ? defaultValue : value;
 }
@@ -68,29 +90,29 @@ function __int(value, defaultValue) {
 
 SLICE_FUNCTION = """
 function __slice(value, slices, fillWith) {
-    var hasFillWith = !_.isUndefined(fillWith) && !_.isNull(fillWith);
+    var hasFillWith = fillWith != null;
     var length = value.length;
     var itemsPerSlice = Math.floor(length / slices);
     var slicesWithExtra = length % slices;
     var offset = 0;
     var result = [];
 
-    _.times(slices, function (slice_number) {
-        var start = offset + slice_number * itemsPerSlice;
+    for (var i = 0; i < slices; i++) {
+        var start = offset + i * itemsPerSlice;
 
-        if (slice_number < slicesWithExtra) {
+        if (i < slicesWithExtra) {
             offset += 1;
         }
 
-        var end = offset + (slice_number + 1) * itemsPerSlice;
+        var end = offset + (i + 1) * itemsPerSlice;
         var tmp = value.slice(start, end);
 
-        if (hasFillWith && slice_number >= slicesWithExtra) {
+        if (hasFillWith && i >= slicesWithExtra) {
             tmp.push(fillWith);
         }
 
         result.push(tmp);
-    });
+    }
 
     return result;
 }
@@ -108,9 +130,9 @@ function __title(s) {
 TRUNCATE_FUNCTION = """
 function __truncate(s, length, killwords, end) {
     s = s + '';
-    length = _.isUndefined(length) ? 255 : length;
-    killwords = _.isUndefined(killwords) ? false : killwords;
-    end = _.isUndefined(end) ? '...' : end;
+    length = length === undefined ? 255 : length;
+    killwords = killwords === undefined ? false : killwords;
+    end = end === undefined ? '...' : end;
 
     var endLength = end.length;
 
@@ -138,4 +160,130 @@ function __truncate(s, length, killwords, end) {
     result.push(end);
     return result.join(' ');
 }
+"""
+
+EACH_FUNCTION = """
+function __each(obj, fn) {
+    if (Array.isArray(obj)) {
+        return obj.forEach(fn);
+    }
+    try {
+        var keys = Object.keys(obj);
+    } catch (e) {
+        return;
+    }
+    keys.forEach(function (k) {
+        fn(obj[k], k);
+    });
+}
+"""
+
+FIRST_FUNCTION = """
+function __first(obj) {
+    return Array.isArray(obj) ? obj[0] : null;
+}
+"""
+
+LAST_FUNCTION = """
+function __last(obj) {
+    return Array.isArray(obj) ? obj[obj.length - 1] : null;
+}
+"""
+
+SIZE_FUNCTION = """
+function __size(obj) {
+    if (Array.isArray(obj)) {
+        return obj.length;
+    }
+    try {
+        var keys = Object.keys(obj);
+    }
+    catch (e) { return 0; }
+    return keys.length;
+}
+"""
+
+IS_EQUAL_FUNCTION = """
+function __isEqual(objA, objB) {
+    var typeA;
+    var keysA;
+    var i;
+
+    if (objA === objB) {
+        return true;
+    }
+
+    typeA = __type(objA);
+
+    if (typeA !== __type(objB)) {
+        return false;
+    }
+
+    if (typeA === 'Array') {
+
+        if (objA.length !== objB.length) {
+            return false;
+        }
+
+        for (i = 0; i < objA.length; i++) {
+            if (!__isEqual(objA[i], objB[i])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    if (__type(objA) === 'Object') {
+        keysA = Object.keys(objA);
+
+        if (keysA.length !== Object.keys(objB).length) {
+            return false;
+        }
+
+        for (i = 0; i < keysA.length; i++) {
+            if (!__isEqual(objA[keysA[i]], objB[keysA[i]])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    return false;
+}
+"""
+
+ESCAPE_FUNCTION = """
+function __escaper(match) {
+    return {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&#34;',
+        "'": '&#x27;',
+        '`': '&#x60;'
+    }[match];
+}
+var __escapeTestRegex = /(?:&|<|>|"|'|`)/;
+var __escapeReplaceRegex = new RegExp(__escapeTestRegex.source, 'g');
+function __escape(string) {
+    string = string == null ? '' : '' + string;
+    return __escapeTestRegex.test(string) ? string.replace(__escapeReplaceRegex, __escaper) : string;
+}
+"""
+
+# This string has to double all the '{' and '}' due to Python's string formatting.
+# See - https://docs.python.org/2/library/string.html#formatstrings
+TEMPLATE_WRAPPER = """
+function template(context) {{
+    var __result = "";
+    var __tmp;
+    var __toString = Object.prototype.toString;
+    function __type(o) {{
+        return __toString.call(o).match(/\[object (.*?)\]/)[1];
+    }}
+    {template_code}
+    return __result;
+}}
 """

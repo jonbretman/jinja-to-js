@@ -4,7 +4,7 @@ setup(
     name='jinja-to-js',
     version='0.0.3',
     description="Turns Jinja templates into Underscore templates that can be run in the browser.",
-    keywords='jinja underscore html',
+    keywords='jinja html javascript templating',
     author='Jon Bretman',
     author_email='jon.bretman@gmail.com',
     url='http://github.com/jonbretman/jinja-to-js/',

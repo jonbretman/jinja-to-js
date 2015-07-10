@@ -23,13 +23,20 @@ def main():
         default=sys.stdout, dest="outfile"
     )
 
+    parser.add_argument(
+        "-m", "--js-module-format", nargs='?',
+        help="Specifies the JS module format.",
+        dest="js_module_format"
+    )
+
     options = parser.parse_args(args)
 
     jinja_template = options.infile.read()
     if hasattr(jinja_template, 'decode'):
         jinja_template = jinja_template.decode('utf-8')
 
-    compiler = JinjaToJS(template_string=jinja_template)
+    compiler = JinjaToJS(template_string=jinja_template,
+                         js_module_format=options.js_module_format)
 
     options.outfile.write(compiler.get_output())
     return 0
