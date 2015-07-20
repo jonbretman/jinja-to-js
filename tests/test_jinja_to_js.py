@@ -1,14 +1,19 @@
 from __future__ import absolute_import, unicode_literals
 import json
 import os
+import re
 import subprocess
-from os.path import abspath, join, dirname
 import tempfile
 import unittest
+
+from os.path import abspath, dirname, join
+
 from jinja2 import nodes
-import pytest
 from jinja2.environment import Environment
 from jinja2.loaders import FileSystemLoader
+
+import pytest
+
 from jinja_to_js import JinjaToJS, is_method_call
 
 
@@ -44,11 +49,11 @@ class Tests(unittest.TestCase):
 
     ROOT = abspath(join(dirname(__file__)))
     TEMPLATE_PATH = os.path.join(ROOT, 'templates')
-    NODE_SCRIPT_PATH = os.path.join(ROOT, 'render_underscore_template.js')
+    NODE_SCRIPT_PATH = os.path.join(ROOT, 'render_template.js')
 
     def setUp(self):
         self.loader = FileSystemLoader(self.TEMPLATE_PATH)
-        self.env = Environment(loader=self.loader, extensions=['jinja2.ext.with_'])
+        self.env = Environment(loader=self.loader, autoescape=True, extensions=['jinja2.ext.with_'])
 
     def test_constructor_exceptions(self):
 
@@ -249,7 +254,11 @@ class Tests(unittest.TestCase):
                        list_c=[2, 3, 4],
                        dict_a=dict(one='one'),
                        dict_b=dict(one='one'),
-                       dict_c=dict(two='two'))
+                       dict_c=dict(two='two'),
+                       number_1=1,
+                       number_2=2,
+                       letter_a='a',
+                       letter_b='b')
 
     def test_include(self):
         self._run_test('include.jinja',
@@ -268,6 +277,10 @@ class Tests(unittest.TestCase):
         self._run_test('logic.jinja', foo=True, bar=False, baz=True)
         self._run_test('logic.jinja', foo=False, bar=True, baz=True)
         self._run_test('logic.jinja', foo=False, bar=False, baz=False)
+
+    def test_escape(self):
+        self._run_test('escape.jinja',
+                       some_user_input='<script>alert("hello");</script><p class="foo"></p>')
 
     def _run_test(self, name, additional=None, **kwargs):
 
@@ -291,7 +304,7 @@ class Tests(unittest.TestCase):
                 tmp_file_paths.append(path)
                 template_args.append(arg)
 
-        # get the result of rendering the underscore template
+        # get the result of rendering the javascript template
         try:
             js_result = check_output(
                 ['node',
@@ -312,12 +325,12 @@ class Tests(unittest.TestCase):
         if isinstance(js_result, bytes):
             js_result = js_result.decode('utf8')
 
-        # check the jinja result and the underscore result are the same
+        # check the jinja result and the javascript result are the same
         assert jinja_result == js_result
 
     def _compile_js_template(self, name):
-        underscore_template_str = JinjaToJS(self.env, template_name=name).get_output()
-        temp_file_path = self._write_to_temp_file(underscore_template_str)
+        js_module = JinjaToJS(self.env, template_name=name, js_module_format='commonjs').get_output()
+        temp_file_path = self._write_to_temp_file(js_module)
         return name + ':' + temp_file_path, temp_file_path
 
     def _write_to_temp_file(self, data):

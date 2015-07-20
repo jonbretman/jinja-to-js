@@ -19,7 +19,7 @@
     The name property is {{ non_empty_object.inner_obj.inner_inner_key }}
 {% endif %}
 
-{# this tests the python boolean wrapper function works correcly on getitem nodes #}
+{# This tests the python boolean wrapper function works correcly on getitem nodes #}
 {% if non_empty_object['inner_obj']['inner_inner_key'] %}
     The name property is {{ non_empty_object.inner_obj.inner_inner_key }}
 {% endif %}

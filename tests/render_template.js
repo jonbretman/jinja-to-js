@@ -1,4 +1,3 @@
-var _ = require('underscore');
 var fs = require('fs');
 
 var args = process.argv;
@@ -23,7 +22,7 @@ var mainTemplate, i, parts;
 
 for (i = 2; i < args.length - 1; i++) {
     parts = parseTemplateArgument(args[i]);
-    templates[parts.name] = _.template(readFile(parts.path), {variable: 'context'});
+    templates[parts.name] = require(parts.path);
 
     if (i == 2) {
         mainTemplate = parts.name;
