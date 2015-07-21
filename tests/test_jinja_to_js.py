@@ -245,7 +245,9 @@ class Tests(unittest.TestCase):
                        empty_object={},
                        non_empty_object=dict(inner_key='one', inner_obj=dict(inner_inner_key=5)),
                        empty_string='',
-                       non_empty_string='hello')
+                       non_empty_string='hello',
+                       boolean_true=True,
+                       boolean_false=False)
 
     def test_comparisons(self):
         self._run_test('comparisons.jinja',
