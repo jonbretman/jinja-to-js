@@ -4,16 +4,16 @@ function __ok(o) {
     if (!o) {
         return false;
     }
+    if (o === true) {
+        return o;
+    }
     if (Array.isArray(o)) {
         return o.length > 0;
     }
-    try {
-        var keys = Object.keys(o);
+    if (__type(o) === 'Object') {
+        return Object.keys(o).length > 0;
     }
-    catch (e) {
-        return !!o;
-    }
-    return keys.length > 0;
+    return !!o;
 }
 """
 
