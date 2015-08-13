@@ -1,0 +1,8 @@
+The value of foo() is {{ foo() }}
+
+{% set value = foo() %}
+The value of foo() is {{ value }}
+
+{% if foo() %}
+    result of foo() was truthy
+{% endif %}

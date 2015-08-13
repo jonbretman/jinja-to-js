@@ -129,7 +129,7 @@ class Tests(unittest.TestCase):
                                key='value'
                            )
                        ),
-                       somefunction=lambda *args: '')
+                       somefunction=lambda *args: 'hello')
 
     def test_iteration_iteritems(self):
         if hasattr(dict, 'iteritems'):
@@ -283,6 +283,10 @@ class Tests(unittest.TestCase):
     def test_escape(self):
         self._run_test('escape.jinja',
                        some_user_input='<script>alert("hello");</script><p class="foo"></p>')
+
+    def test_function_calls(self):
+        self._run_test('function_calls.jinja', foo=lambda: 'hello')
+
 
     def _run_test(self, name, additional=None, **kwargs):
 

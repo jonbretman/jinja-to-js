@@ -471,14 +471,15 @@ class JinjaToJS(object):
         else:
             # just a normal function call on a context variable
             with self._interpolation():
-                self._process_node(node.node, **kwargs)
-                self.output.write('(')
-                self._process_args(node, **kwargs)
-                self.output.write(')')
+                with self._python_bool_wrapper(**kwargs) as new_kwargs:
+                    self._process_node(node.node, **new_kwargs)
+                    self.output.write('(')
+                    self._process_args(node, **new_kwargs)
+                    self.output.write(')')
 
-                # only output the semi-colon if we are not interpolating
-                if self.state != STATE_INTERPOLATING:
-                    self.output.write(';')
+                    # only output the semi-colon if we are not interpolating
+                    if self.state != STATE_INTERPOLATING:
+                        self.output.write('')
 
     def _process_filter(self, node, **kwargs):
         method_name = getattr(self, '_process_filter_%s' % node.name, None)

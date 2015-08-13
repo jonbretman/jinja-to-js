@@ -14,7 +14,7 @@ try {
 
 for (var key in data) {
     if (data[key] === '<<< MAKE ME A FUNCTION >>>') {
-        data[key] = function () {};
+        data[key] = function () { return 'hello'; };
     }
 }
 
