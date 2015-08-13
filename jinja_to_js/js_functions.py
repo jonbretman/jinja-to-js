@@ -138,27 +138,17 @@ function __truncate(s, length, killwords, end) {
 
     if (s.length <= length) {
         return s;
+    } else if (killwords) {
+        return s.substring(0, length - endLength) + end;
     }
 
-    if (killwords) {
-        return s.substring(0, length) + end;
+    s = s.substring(0, length - endLength).split(' ');
+    s.pop();
+    s = s.join(' ');
+    if (s.length < length) {
+        s += ' ';
     }
-
-    var words = s.split(' ');
-    var result = [];
-    var m = 0, i = 0;
-
-    for (; i < words.length; i++) {
-        m += words[i].length + 1;
-
-        if (m > length) {
-            break;
-        }
-
-        result.push(words[i]);
-    }
-    result.push(end);
-    return result.join(' ');
+    return s + end;
 }
 """
 
