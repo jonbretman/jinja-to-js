@@ -18,35 +18,12 @@ for (var key in data) {
     }
 }
 
-var mainTemplate, i, parts;
-
-for (i = 2; i < args.length - 1; i++) {
-    parts = parseTemplateArgument(args[i]);
-    templates[parts.name] = require(parts.path);
-
-    if (i == 2) {
-        mainTemplate = parts.name;
-    }
-}
-
-data.include = function (name) {
-    return templates[name];
-};
-
-process.stdout.write(templates[mainTemplate](data));
+process.stdout.write(require(args[2])(data));
 
 function readFile(name) {
     try {
         return fs.readFileSync(name, 'utf8');
     } catch (e) {
         throw new Error('Unable to read file ' + name);
-    }
-}
-
-function parseTemplateArgument(str) {
-    var parts = str.split(':');
-    return {
-        name: parts[0],
-        path: parts[1]
     }
 }

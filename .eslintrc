@@ -1,0 +1,43 @@
+{
+  "rules": {
+
+    "camelcase": [2, {"properties": "never"}],
+    "comma-style": [2, "last"],
+    "no-inner-declarations": 2,
+    "no-lonely-if": 2,
+    "spaced-comment": [2, "always"],
+    "indent": [2, 4],
+    "no-func-assign": 2,
+    "curly": 2,
+    "space-before-function-paren": [2, {"anonymous": "always", "named": "never"}],
+    "brace-style": [2,  "1tbs"],
+    "no-shadow": [2,  {"hoist": "never"}],
+    "one-var": [2,  "never"],
+    "space-in-brackets": 0,
+    "key-spacing": 0,
+    "no-inline-comments": 0,
+    "max-nested-callbacks": [2,  2],
+    "max-len": 0,
+    "max-depth": [2, 3],
+    "quotes": [2,  "single", "avoid-escape"],
+    "no-new": 0,
+    "no-multi-spaces": 0,
+    "space-infix-ops": 0,
+    "comma-spacing": 0,
+    "no-unused-vars": 0,
+    "func-style": [2,  "declaration"],
+    "no-use-before-define": [2,  "nofunc"],
+    "semi": [2, "always"],
+    "eqeqeq": [2, "smart"],
+
+    // turned off
+    "no-console": 0,
+    "strict": 0,
+    "no-underscore-dangle": 0,
+    "consistent-return": 0
+
+  },
+  "env": {
+    "browser": true
+  }
+}

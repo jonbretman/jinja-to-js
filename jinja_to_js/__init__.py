@@ -1,14 +1,10 @@
 import contextlib
 import json
 import re
+from os import path
+
 from jinja2 import Environment, nodes
 import six
-
-from jinja_to_js.js_functions import (
-    BATCH_FUNCTION, CAPITALIZE_FUNCTION, DEFAULT_FUNCTION, EACH_FUNCTION, ESCAPE_FUNCTION,
-    FIRST_FUNCTION, INT_FUNCTION, IS_EQUAL_FUNCTION, LAST_FUNCTION, PYTHON_BOOL_EVAL_FUNCTION,
-    SIZE_FUNCTION, SLICE_FUNCTION, TEMPLATE_WRAPPER, TITLE_FUNCTION, TRUNCATE_FUNCTION
-)
 
 
 OPERANDS = {
@@ -45,12 +41,49 @@ LOOP_HELPERS = (
 )
 
 
+def amd_format(dependencies, template_function):
+    result = 'define(['
+    result += ",".join('"{0}"'.format(x[0]) for x in dependencies)
+    result += '], function ('
+    result += ",".join(x[1] for x in dependencies)
+    result += ') { return '
+    result += template_function
+    result += '; });'
+    return result
+
+
+def commonjs_format(dependencies, template_function):
+    result = ''.join('var {0} = require("{1}");'.format(y, x) for x, y in dependencies)
+    result += 'module.exports = {0};'.format(template_function)
+    return result
+
+
+def es6_format(dependencies, template_function):
+    result = ''.join('import {0} from "{1}";'.format(y, x) for x, y in dependencies)
+    result += 'export default {0}'.format(template_function)
+    return result
+
+
 JS_MODULE_FORMATS = {
-    None: '{template_function}',
-    'amd': 'define(function () {{ return {template_function} }});',
-    'commonjs': 'module.exports = {template_function};',
-    'es6': 'export default {template_function};'
+    None: lambda dependencies, template_function: template_function,
+    'amd': amd_format,
+    'commonjs': commonjs_format,
+    'es6': es6_format
 }
+
+
+# This string has to double all the '{' and '}' due to Python's string formatting.
+# See - https://docs.python.org/2/library/string.html#formatstrings
+TEMPLATE_WRAPPER = """
+function template(context) {{
+    var __result = "";
+    var __tmp;
+    var __runtime = jinjaToJS.runtime;
+    var __filters = jinjaToJS.filters;
+    {template_code}
+    return __result;
+}}
+"""
 
 
 class ExtendsException(Exception):
@@ -125,21 +158,29 @@ class JinjaToJS(object):
                  template_name=None,
                  template_string=None,
                  js_module_format=None,
-                 include_fn_name='context.include',
-                 context_name='context',
-                 child_blocks=None):
+                 runtime_path='jinja-to-js',
+                 include_prefix='',
+                 include_ext='',
+                 child_blocks=None,
+                 dependencies=None):
         self.environment = environment or Environment(autoescape=True,
                                                       extensions=['jinja2.ext.with_',
                                                                   'jinja2.ext.autoescape'])
         self.output = six.StringIO()
         self.stored_names = set()
         self.temp_var_names = temp_var_names_generator()
-        self.include_fn_name = include_fn_name
-        self.context_name = context_name
         self.state = STATE_DEFAULT
         self.child_blocks = child_blocks or {}
+        self.dependencies = dependencies or []
         self._runtime_function_cache = []
         self.js_module_format = js_module_format
+        self.runtime_path = runtime_path
+        self.include_prefix = include_prefix
+        self.include_ext = include_ext
+
+        self.context_name = 'context'
+
+        self.dependencies.append((self.runtime_path, 'jinjaToJS'))
 
         if template_name is not None:
             template_string, _, _ = self.environment.loader.get_source(
@@ -170,7 +211,7 @@ class JinjaToJS(object):
         module_format = JS_MODULE_FORMATS[self.js_module_format]
 
         # generate the module code
-        return module_format.format(template_function=template_function)
+        return module_format(self.dependencies, template_function)
 
     def _process_node(self, node, **kwargs):
         node_name = node.__class__.__name__.lower()
@@ -204,8 +245,10 @@ class JinjaToJS(object):
         # load the parent template
         parent_template = JinjaToJS(environment=self.environment,
                                     template_name=node.template.value,
-                                    include_fn_name=self.include_fn_name,
-                                    child_blocks=self.child_blocks)
+                                    child_blocks=self.child_blocks,
+                                    runtime_path=self.runtime_path,
+                                    include_ext=self.include_ext,
+                                    dependencies=self.dependencies)
 
         # add the parent templates output to the current output
         self.output.write(parent_template.output.getvalue())
@@ -330,8 +373,7 @@ class JinjaToJS(object):
         previous_stored_names = self.stored_names.copy()
 
         with self._execution():
-            self._add_runtime_function(EACH_FUNCTION)
-            self.output.write('__each(')
+            self.output.write('__runtime.each(')
 
             if is_method_call(node.iter, dict.keys.__name__):
                 self.output.write('Object.keys(')
@@ -496,8 +538,7 @@ class JinjaToJS(object):
     def _process_filter_capitalize(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(CAPITALIZE_FUNCTION)
-                self.output.write('__capitalize(')
+                self.output.write('__filters.capitalize(')
                 self._process_node(node.node, **new_kwargs)
                 self.output.write(')')
 
@@ -519,8 +560,7 @@ class JinjaToJS(object):
     def _process_filter_batch(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(BATCH_FUNCTION)
-                self.output.write('__batch(')
+                self.output.write('__filters.batch(')
                 self._process_node(node.node, **new_kwargs)
                 self.output.write(',')
                 self._process_args(node, **new_kwargs)
@@ -529,8 +569,7 @@ class JinjaToJS(object):
     def _process_filter_default(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(DEFAULT_FUNCTION)
-                self.output.write('__default(')
+                self.output.write('__filters.default(')
                 self._process_node(node.node, **new_kwargs)
                 if node.args:
                     self.output.write(',')
@@ -540,16 +579,14 @@ class JinjaToJS(object):
     def _process_filter_first(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(FIRST_FUNCTION)
-                self.output.write('__first(')
+                self.output.write('__filters.first(')
                 self._process_node(node.node, **new_kwargs)
                 self.output.write(')')
 
     def _process_filter_int(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(INT_FUNCTION)
-                self.output.write('__int(')
+                self.output.write('__filters.int(')
                 self._process_node(node.node, **new_kwargs)
                 if node.args:
                     self.output.write(',')
@@ -559,16 +596,14 @@ class JinjaToJS(object):
     def _process_filter_last(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(LAST_FUNCTION)
-                self.output.write('__last(')
+                self.output.write('__filters.last(')
                 self._process_node(node.node, **new_kwargs)
                 self.output.write(')')
 
     def _process_filter_length(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(SIZE_FUNCTION)
-                self.output.write('__size(')
+                self.output.write('__filters.size(')
                 self._process_node(node.node, **new_kwargs)
                 self.output.write(')')
 
@@ -582,8 +617,7 @@ class JinjaToJS(object):
     def _process_filter_slice(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(SLICE_FUNCTION)
-                self.output.write('__slice(')
+                self.output.write('__filters.slice(')
                 self._process_node(node.node, **new_kwargs)
                 self.output.write(',')
                 self._process_args(node, **new_kwargs)
@@ -592,8 +626,7 @@ class JinjaToJS(object):
     def _process_filter_title(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(TITLE_FUNCTION)
-                self.output.write('__title(')
+                self.output.write('__filters.title(')
                 self._process_node(node.node, **new_kwargs)
                 self.output.write(')')
 
@@ -614,8 +647,7 @@ class JinjaToJS(object):
     def _process_filter_truncate(self, node, **kwargs):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
-                self._add_runtime_function(TRUNCATE_FUNCTION)
-                self.output.write('__truncate(')
+                self.output.write('__filters.truncate(')
                 self._process_node(node.node, **new_kwargs)
                 self.output.write(',')
                 self._process_args(node, **new_kwargs)
@@ -668,10 +700,9 @@ class JinjaToJS(object):
         with option(kwargs, use_python_bool_wrapper=False):
 
             if use_is_equal_function:
-                self._add_runtime_function(IS_EQUAL_FUNCTION)
                 if operand.op == 'ne':
                     self.output.write('!')
-                self.output.write('__isEqual(')
+                self.output.write('__runtime.isEqual(')
 
             self._process_node(node.expr, **kwargs)
 
@@ -719,9 +750,9 @@ class JinjaToJS(object):
         self.output.write(' === undefined')
 
     def _process_test_callable(self, node, **kwargs):
-        self.output.write('__toString.call(')
+        self.output.write('__runtime.type(')
         self._process_node(node.node, **kwargs)
-        self.output.write(') === "[object Function]"')
+        self.output.write(') === "Function"')
 
     def _process_test_divisibleby(self, node, **kwargs):
         self._process_node(node.node, **kwargs)
@@ -752,28 +783,37 @@ class JinjaToJS(object):
         self._process_node(node.node, **kwargs)
 
     def _process_test_string(self, node, **kwargs):
-        self.output.write('__toString.call(')
+        self.output.write('__runtime.type(')
         self._process_node(node.node, **kwargs)
-        self.output.write(') === "[object String]"')
+        self.output.write(') === "String"')
 
     def _process_test_mapping(self, node, **kwargs):
-        self.output.write('__toString.call(')
+        self.output.write('__runtime.type(')
         self._process_node(node.node, **kwargs)
-        self.output.write(') === "[object Object]"')
+        self.output.write(') === "Object"')
 
     def _process_test_number(self, node, **kwargs):
-        self.output.write('(__toString.call(')
+        self.output.write('(__runtime.type(')
         self._process_node(node.node, **kwargs)
-        self.output.write(') === "[object Number]" && !isNaN(')
+        self.output.write(') === "Number" && !isNaN(')
         self._process_node(node.node, **kwargs)
         self.output.write('))')
 
     def _process_include(self, node, **kwargs):
         with self._interpolation(safe=True):
-            self.output.write(self.include_fn_name)
-            self.output.write('(')
-            self._process_node(node.template, **kwargs)
-            self.output.write(')')
+            include_path = self.include_prefix + node.template.value
+            include_path = path.splitext(include_path)[0] + self.include_ext
+            include_var_name = next(self.temp_var_names)
+
+            self.dependencies.append((include_path, include_var_name))
+
+            if self.js_module_format is None:
+                self.output.write('jinjaToJS.include("')
+                self.output.write(include_path)
+                self.output.write('");')
+            else:
+                self.output.write(include_var_name)
+
             self.output.write('(')
             self.output.write(self.context_name)
             self.output.write(')')
@@ -839,20 +879,6 @@ class JinjaToJS(object):
             if i < len(node.args) - 1:
                 self.output.write(',')
 
-    def _add_runtime_function(self, fn_def):
-        """
-        Adds a JS function the template output. Will only add each function once.
-        """
-
-        if fn_def in self._runtime_function_cache:
-            return
-
-        output = six.StringIO()
-        output.write(fn_def)
-        output.write(self.output.getvalue())
-        self.output = output
-        self._runtime_function_cache.append(fn_def)
-
     @contextlib.contextmanager
     def _execution(self):
         """
@@ -881,8 +907,7 @@ class JinjaToJS(object):
             did_start_interpolating = True
             self.output.write('__result += "" + ')
             if safe is not True:
-                self._add_runtime_function(ESCAPE_FUNCTION)
-                self.output.write('__escape')
+                self.output.write('__runtime.escape')
             self.output.write('((__tmp = (')
             self.state = STATE_INTERPOLATING
 
@@ -942,8 +967,7 @@ class JinjaToJS(object):
         use_python_bool_wrapper = kwargs.get('use_python_bool_wrapper')
 
         if use_python_bool_wrapper:
-            self._add_runtime_function(PYTHON_BOOL_EVAL_FUNCTION)
-            self.output.write('__ok(')
+            self.output.write('__runtime.boolean(')
 
         with option(kwargs, use_python_bool_wrapper=False):
             yield kwargs

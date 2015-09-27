@@ -8,3 +8,5 @@ jinja_to_js.egg-info/
 .coverage
 .tox
 .idea
+.cache
+node_modules/

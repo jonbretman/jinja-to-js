@@ -29,6 +29,27 @@ def main():
         dest="js_module_format"
     )
 
+    parser.add_argument(
+        "-r", "--runtime-path", nargs='?',
+        help="Specifies the import path for the jinja-to-js JS runtime.",
+        default='jinja-to-js',
+        dest="runtime_path"
+    )
+
+    parser.add_argument(
+        "-i", "--include-ext", nargs='?',
+        help="Specifies the extension to use for included templates.",
+        default='',
+        dest="include_ext"
+    )
+
+    parser.add_argument(
+        "-p", "--include-prefix", nargs='?',
+        help="Specifies the prefix to use for included templates.",
+        default='',
+        dest="include_prefix"
+    )
+
     options = parser.parse_args(args)
 
     jinja_template = options.infile.read()
@@ -36,7 +57,10 @@ def main():
         jinja_template = jinja_template.decode('utf-8')
 
     compiler = JinjaToJS(template_string=jinja_template,
-                         js_module_format=options.js_module_format)
+                         js_module_format=options.js_module_format,
+                         runtime_path=options.runtime_path,
+                         include_ext=options.include_ext,
+                         include_prefix=options.include_prefix)
 
     options.outfile.write(compiler.get_output())
     return 0
