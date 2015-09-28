@@ -1,0 +1,8 @@
+.idea
+node_modules
+.cache
+build
+dist
+jinja_to_js
+jinja_to_js.egg-info
+tests
