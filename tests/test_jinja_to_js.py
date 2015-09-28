@@ -2,6 +2,7 @@ from __future__ import absolute_import, unicode_literals
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -54,6 +55,10 @@ class Tests(unittest.TestCase):
     def setUp(self):
         self.loader = FileSystemLoader(self.TEMPLATE_PATH)
         self.env = Environment(loader=self.loader, autoescape=True, extensions=['jinja2.ext.with_'])
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
 
     def test_constructor_exceptions(self):
 
@@ -287,18 +292,14 @@ class Tests(unittest.TestCase):
     def test_function_calls(self):
         self._run_test('function_calls.jinja', foo=lambda: 'hello')
 
-
     def _run_test(self, name, additional=None, **kwargs):
-
-        tmp_file_paths = []
 
         # first we'll render the jinja template
         jinja_result = self.env.get_template(name).render(**kwargs).strip()
 
         # create the main template
-        arg, path = self._compile_js_template(name)
-        tmp_file_paths.append(path)
-        template_args = [arg]
+        path = self._compile_js_template(name)
+        template_args = [path]
 
         # create a temp file containing the data
         data_file_path = self._write_to_temp_file(json.dumps(kwargs, cls=Encoder))
@@ -306,9 +307,7 @@ class Tests(unittest.TestCase):
         # if additional template are required e.g. for includes then create those too
         if additional:
             for n in additional:
-                arg, path = self._compile_js_template(n)
-                tmp_file_paths.append(path)
-                template_args.append(arg)
+                self._compile_js_template(n)
 
         # get the result of rendering the javascript template
         try:
@@ -320,10 +319,6 @@ class Tests(unittest.TestCase):
             )
         except Exception as e:
             raise e
-        finally:
-            # remove the temp files
-            for path in tmp_file_paths:
-                os.unlink(path)
 
         jinja_result = jinja_result.strip()
         js_result = js_result.strip()
@@ -335,9 +330,23 @@ class Tests(unittest.TestCase):
         assert jinja_result == js_result
 
     def _compile_js_template(self, name):
-        js_module = JinjaToJS(self.env, template_name=name, js_module_format='commonjs').get_output()
-        temp_file_path = self._write_to_temp_file(js_module)
-        return name + ':' + temp_file_path, temp_file_path
+        js_module = JinjaToJS(
+            self.env,
+            template_name=name,
+            js_module_format='commonjs',
+            include_prefix=self.temp_dir + '/',
+            runtime_path=abspath('jinja-to-js-runtime.js')
+        ).get_output()
+
+        target = self.temp_dir + '/' + os.path.splitext(name)[0] + '.js'
+
+        if not os.path.exists(os.path.dirname(target)):
+            os.makedirs(os.path.dirname(target))
+
+        with open(target, 'w') as f:
+            f.write(js_module)
+
+        return target
 
     def _write_to_temp_file(self, data):
         fd, file_path = tempfile.mkstemp()

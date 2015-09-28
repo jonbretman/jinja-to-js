@@ -1,0 +1,22 @@
+{
+  "name": "jinja-to-js",
+  "version": "1.0.2",
+  "description": "[![Build Status](https://travis-ci.org/jonbretman/jinja-to-js.svg?branch=master)](https://travis-ci.org/jonbretman/jinja-to-js)",
+  "main": "jinja-to-js-runtime.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonbretman/jinja-to-js.git"
+  },
+  "scripts": {
+    "lint": "eslint jinja-to-js-runtime.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jonbretman/jinja-to-js/issues"
+  },
+  "homepage": "https://github.com/jonbretman/jinja-to-js#readme",
+  "devDependencies": {
+    "eslint": "^1.5.1"
+  }
+}

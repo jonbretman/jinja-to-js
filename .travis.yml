@@ -18,6 +18,7 @@ install:
     - "virtualenv ~/.venv"
     - "source ~/.venv/bin/activate"
     - "pip install tox"
+    - "npm install && npm run-script lint"
 
 script:
     - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then tox -e py26,pep8; fi
