@@ -292,6 +292,17 @@ class Tests(unittest.TestCase):
     def test_function_calls(self):
         self._run_test('function_calls.jinja', foo=lambda: 'hello')
 
+    def test_slice(self):
+        self._run_test('slice.jinja',
+                       names=['John', 'Paul', 'George', 'Ringo', 'Matt', 'Jon', 'Nick', 'Ivan'])
+
+    def test_slice_with_step_raises(self):
+
+        with pytest.raises(Exception) as e:
+            JinjaToJS(template_string='{% for name in names[0:5:2] %}{{ name }}{% endfor %}')
+
+        assert str(e.value) == 'The step argument is not supported when slicing.'
+
     def _run_test(self, name, additional=None, **kwargs):
 
         # first we'll render the jinja template
