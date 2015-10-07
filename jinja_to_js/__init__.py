@@ -353,9 +353,28 @@ class JinjaToJS(object):
         with self._interpolation():
             with self._python_bool_wrapper(**kwargs) as new_kwargs:
                 self._process_node(node.node, **new_kwargs)
-                self.output.write('[')
-                self._process_node(node.arg, **new_kwargs)
-                self.output.write(']')
+
+                if isinstance(node.arg, nodes.Slice):
+                    self.output.write('.slice(')
+
+                    if node.arg.step is not None:
+                        raise Exception('The step argument is not supported when slicing.')
+
+                    if node.arg.start is None:
+                        self.output.write('0')
+                    else:
+                        self._process_node(node.arg.start, **new_kwargs)
+
+                    if node.arg.stop is None:
+                        self.output.write(')')
+                    else:
+                        self.output.write(',')
+                        self._process_node(node.arg.stop, **new_kwargs)
+                        self.output.write(')')
+                else:
+                    self.output.write('[')
+                    self._process_node(node.arg, **new_kwargs)
+                    self.output.write(']')
 
     def _process_for(self, node, **kwargs):
         """
@@ -723,6 +742,11 @@ class JinjaToJS(object):
     def _process_const(self, node, **_):
         with self._interpolation():
             self.output.write(json.dumps(node.value))
+
+    def _process_neg(self, node, **kwargs):
+        with self._interpolation():
+            self.output.write('-')
+            self._process_node(node.node, **kwargs)
 
     def _process_list(self, node, **kwargs):
         self.output.write('[')
