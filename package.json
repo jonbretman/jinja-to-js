@@ -10,6 +10,9 @@
   "scripts": {
     "lint": "eslint jinja-to-js-runtime.js"
   },
+  "files": [
+    "jinja-to-js-runtime.js"
+  ],
   "author": "",
   "license": "ISC",
   "bugs": {
