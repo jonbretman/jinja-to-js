@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import, unicode_literals
 import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -18,7 +19,7 @@ import pytest
 from jinja_to_js import JinjaToJS, is_method_call
 
 
-if "check_output" not in dir( subprocess ):
+if "check_output" not in dir(subprocess):
     def check_output(*popenargs, **kwargs):
         if 'stdout' in kwargs:
             raise ValueError('stdout argument not allowed, it will be overridden.')
@@ -303,6 +304,10 @@ class Tests(unittest.TestCase):
 
         assert str(e.value) == 'The step argument is not supported when slicing.'
 
+    def test_unicode(self):
+        self._run_test('unicode.jinja',
+                       snowman=u'☃')
+
     def _run_test(self, name, additional=None, **kwargs):
 
         # first we'll render the jinja template
@@ -354,8 +359,8 @@ class Tests(unittest.TestCase):
         if not os.path.exists(os.path.dirname(target)):
             os.makedirs(os.path.dirname(target))
 
-        with open(target, 'w') as f:
-            f.write(js_module)
+        with open(target, 'wb') as f:
+            f.write(js_module.encode('utf-8'))
 
         return target
 

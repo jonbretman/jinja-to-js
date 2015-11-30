@@ -1,9 +1,14 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 import contextlib
 import json
 import re
+import os
+
 from os import path
 
-from jinja2 import Environment, nodes
+from jinja2 import Environment, FileSystemLoader, nodes
 import six
 
 
@@ -155,6 +160,7 @@ class JinjaToJS(object):
 
     def __init__(self,
                  environment=None,
+                 template_root=None,
                  template_name=None,
                  template_string=None,
                  js_module_format=None,
@@ -163,7 +169,12 @@ class JinjaToJS(object):
                  include_ext='',
                  child_blocks=None,
                  dependencies=None):
-        self.environment = environment or Environment(autoescape=True,
+
+        if template_root is None:
+            template_root = os.getcwd()
+
+        self.environment = environment or Environment(loader=FileSystemLoader(template_root),
+                                                      autoescape=True,
                                                       extensions=['jinja2.ext.with_',
                                                                   'jinja2.ext.autoescape'])
         self.output = six.StringIO()
@@ -177,14 +188,15 @@ class JinjaToJS(object):
         self.runtime_path = runtime_path
         self.include_prefix = include_prefix
         self.include_ext = include_ext
+        self.template_name = template_name
 
         self.context_name = 'context'
 
         self.dependencies.append((self.runtime_path, 'jinjaToJS'))
 
-        if template_name is not None:
+        if self.template_name is not None:
             template_string, _, _ = self.environment.loader.get_source(
-                self.environment, template_name
+                self.environment, self.template_name
             )
 
         if not template_string:
@@ -210,8 +222,15 @@ class JinjaToJS(object):
         # get the correct module format template
         module_format = JS_MODULE_FORMATS[self.js_module_format]
 
+        seen_deps = set()
+        unique_deps = []
+        for dep_path, dep_name in self.dependencies:
+            if dep_path not in seen_deps:
+                unique_deps.append((dep_path, dep_name))
+                seen_deps.add(dep_path)
+
         # generate the module code
-        return module_format(self.dependencies, template_function)
+        return module_format(unique_deps, template_function)
 
     def _process_node(self, node, **kwargs):
         node_name = node.__class__.__name__.lower()
@@ -245,8 +264,10 @@ class JinjaToJS(object):
         # load the parent template
         parent_template = JinjaToJS(environment=self.environment,
                                     template_name=node.template.value,
-                                    child_blocks=self.child_blocks,
+                                    js_module_format=None,
                                     runtime_path=self.runtime_path,
+                                    child_blocks=self.child_blocks,
+                                    include_prefix=self.include_prefix,
                                     include_ext=self.include_ext,
                                     dependencies=self.dependencies)
 
@@ -825,7 +846,17 @@ class JinjaToJS(object):
 
     def _process_include(self, node, **kwargs):
         with self._interpolation(safe=True):
-            include_path = self.include_prefix + node.template.value
+            include_path = node.template.value
+
+            if self.include_prefix:
+                include_path = self.include_prefix + node.template.value
+            elif self.js_module_format in ('es6', 'commonjs',) and self.template_name:
+                include_path = os.path.relpath(
+                    node.template.value, os.path.dirname(self.template_name)
+                )
+                if not include_path.startswith('.'):
+                    include_path = './' + include_path
+
             include_path = path.splitext(include_path)[0] + self.include_ext
             include_var_name = next(self.temp_var_names)
 
