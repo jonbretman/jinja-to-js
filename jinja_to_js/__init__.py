@@ -515,6 +515,19 @@ class JinjaToJS(object):
             with self._execution():
                 self.output.write('}')
 
+    def _process_condexpr(self, node, **kwargs):
+        with self._interpolation():
+            self.output.write('(')
+
+            with self._python_bool_wrapper(**kwargs) as new_kwargs:
+                self._process_node(node.test, **new_kwargs)
+
+            self.output.write(' ? ')
+            self._process_node(node.expr1, **kwargs)
+            self.output.write(' : ')
+            self._process_node(node.expr2, **kwargs)
+            self.output.write(')')
+
     def _process_not(self, node, **kwargs):
         self.output.write('!')
 
@@ -763,6 +776,10 @@ class JinjaToJS(object):
     def _process_const(self, node, **_):
         with self._interpolation():
             self.output.write(json.dumps(node.value))
+
+    def _process_nonetype(self, node, **_):
+        with self._interpolation():
+            self.output.write('null')
 
     def _process_neg(self, node, **kwargs):
         with self._interpolation():

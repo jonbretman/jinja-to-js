@@ -308,6 +308,10 @@ class Tests(unittest.TestCase):
         self._run_test('unicode.jinja',
                        snowman=u'☃')
 
+    def test_inline_if(self):
+        self._run_test('inline_if.jinja',
+                       truthy=True, falsey=False, var_1='1', var_2='2', foo=dict(bar=dict(baz=1)))
+
     def _run_test(self, name, additional=None, **kwargs):
 
         # first we'll render the jinja template
