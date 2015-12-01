@@ -1,4 +1,5 @@
 from __future__ import absolute_import, unicode_literals
+import os
 import sys
 import argparse
 
@@ -12,9 +13,10 @@ def main():
     parser = argparse.ArgumentParser(usage='python -m jinja_to_js [options]')
 
     parser.add_argument(
-        "-f", "--file", nargs='?', type=argparse.FileType('r'),
-        help="Specifies the input file.  The default is stdin.",
-        default=sys.stdin, dest="infile"
+        "-f", "--file", nargs='?',
+        help="Specifies the input file relative to --template-root. "
+             "If not specific will default to stdin.",
+        default=None, dest="template_name"
     )
 
     parser.add_argument(
@@ -50,13 +52,22 @@ def main():
         dest="include_prefix"
     )
 
+    parser.add_argument(
+        "-t", "--template-root", nargs='?',
+        help="Specifies the root directory where all templates should be loaded from.",
+        default=os.getcwd(),
+        dest="template_root"
+    )
+
     options = parser.parse_args(args)
 
-    jinja_template = options.infile.read()
-    if hasattr(jinja_template, 'decode'):
-        jinja_template = jinja_template.decode('utf-8')
+    template_string = None
+    if options.template_name is None:
+        template_string = sys.stdin.read()
 
-    compiler = JinjaToJS(template_string=jinja_template,
+    compiler = JinjaToJS(template_name=options.template_name,
+                         template_string=template_string,
+                         template_root=options.template_root,
                          js_module_format=options.js_module_format,
                          runtime_path=options.runtime_path,
                          include_ext=options.include_ext,
