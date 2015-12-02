@@ -1,0 +1,7 @@
+{{ data.value }}
+{% if data.child %}
+    {% with %}
+        {% set data = data.child %}
+        {% include 'recursive_include.jinja' %}
+    {% endwith %}
+{% endif %}
