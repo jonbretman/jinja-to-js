@@ -1,10 +1,10 @@
 [![Build Status](https://travis-ci.org/jonbretman/jinja-to-js.svg?branch=master)](https://travis-ci.org/jonbretman/jinja-to-js)
 
 # Jinja to JS
-Converts [Jinja2](http://jinja.pocoo.org/docs/dev/) templates into JavaScript functions so that they can be used in the browser.
+Converts [Jinja2](http://jinja.pocoo.org/docs/dev/) templates into JavaScript functions so that they can be used in JavaScript environments.
 
 ## What is it?
-Jinja2 is a very fast templating language and therefore is ideal for use with Python web framework like Django, however there are many use cases for wanting to share the same template between the server and the browser. Instead of writing a Jinja implementation in JavaScript (there are already a few of those) jinja-to-js uses the Python Jinja2 library to parse a template into an AST (http://jinja.pocoo.org/docs/dev/api/#jinja2.Environment.parse) and uses that AST to output a JavasScript function/module.
+Jinja2 is a very fast templating language and therefore is ideal for use with Python web frameworks like Django, however there are many use cases for wanting to share the same template between the server and the browser. Instead of writing a Jinja implementation in JavaScript (there are already a few of those) jinja-to-js uses the Python Jinja2 library to parse a template into an AST (http://jinja.pocoo.org/docs/dev/api/#jinja2.Environment.parse) and uses that AST to output a JavasScript function/module. By only relying on one parsing implementation you can be sure that your templates will produce the same result whether used from Python or JavaScript.
 
 ## Example
 
@@ -13,29 +13,79 @@ First install jinja-to-js using `pip`:
 $ pip install jinja-to-js
 ```
 
-Lets assume we have a Jinja template called **names.jinja**.
+Lets assume we have a Jinja template called **names.jinja** in a templates directory located at **./src/templates**.
 ```jinja
 {% for name in names %}
     {{ name }}
 {% endfor %}
 ```
 
-We can turn this into a JavaScript module like so:
+We can turn this into an ES6 JavaScript module like so:
 ```sh
-$ jinja_to_js -f ./names.jinja -o ./names.js -m es6
+$ jinja_to_js ./src/templates names.jinja -o names.js -m es6
 ```
 
 **names.js** will now contain:
 ```js
-export default function template(context) {
+import jinjaToJS from 'jinja-to-js';
+
+export default function templateNames(context) {
     /* JS code here */
 };
 ```
 
-The `-m` option specified the module type, which can be `amd`, `commonjs`, `es6` or not provided at all which will result in jinja-to-js just outputting a named JS function.
+#### JavaScript Runtime
+Not the first line where the output module imports the [jinja-to-js](https://www.npmjs.com/package/jinja-to-js) package. This can be installed from npm like shown below and is required. It is very small though and means that common code like HTML escaping doesn't need to be duplicated in each template.
+
+```sh
+$ npm install jinja-to-js
+```
+
+#### JavaScript Module Formats
+The `-m` option (long version `--js-module-format`) specifies the module type, which can be `amd`, `commonjs`, `es6` or not provided at all which will result in jinja-to-js just outputting a named JS function. 
+
+See `jinja_to_js --help` for all available options.
+
+```
+$ jinja_to_js --help
+usage: jinja_to_js [-h] [-o [OUTFILE]] [-m [JS_MODULE_FORMAT]]
+                   [-r [RUNTIME_PATH]] [-p [INCLUDE_PREFIX]]
+                   [-i [INCLUDE_EXT]]
+                   template_root template_name
+
+Convert Jinja templates into JavaScript functions.
+--------------------------------------------------
+
+Three different JavaScript modules formats are supported:
+
+  Global: the output will be a named function.
+  AMD: the output will be an AMD module
+  ES6: the output will be an ES6 module with a default export.
+
+positional arguments:
+  template_root         Specifies the root directory where all templates
+                        should be loaded from.
+  template_name         Specifies the input file (relative to the template
+                        root).
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -o [OUTFILE], --output [OUTFILE]
+                        Specifies the output file. The default is stdout.
+  -m [JS_MODULE_FORMAT], --js-module-format [JS_MODULE_FORMAT]
+                        Specifies the JS module format.
+  -r [RUNTIME_PATH], --runtime-path [RUNTIME_PATH]
+                        Specifies the import path for the jinja-to-js JS
+                        runtime.
+  -p [INCLUDE_PREFIX], --include-prefix [INCLUDE_PREFIX]
+                        Specifies the prefix to use for included templates.
+  -i [INCLUDE_EXT], --include-ext [INCLUDE_EXT]
+                        Specifies the extension to use for included templates.
+```
 
 ## Supported Features
 * `if` statements [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#if)
+* `if` expressions [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#if-expression)
 * `for` [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#for) - see below for supported loop helpers
 * `with` [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#with-statement)
 * `include` [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#include) - see below for example
@@ -90,44 +140,26 @@ Loop helpers will only work for lists (JS arrays). The following helpers are sup
 
 #### Includes [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#include)
 
-Includes are supported by taking the following steps:
+Includes are handled differently depending on what `--js-module-format` is set to. 
 
-* If a template contain an include, for example `{% include 'bar.jinja' %}`, then you must provide a function called `include` on the context object passed to the template. This function will be called with the name of the template to be included and should return the compiled version of this template.
-* The returned template function is called with the current context as it's only argument.
-* The return value of this function is output into the current template.
+**No module format**: If it is not set then jinja-to-js will just output a named JavaScript function that will expect the jinja-to-js JavaScript runtime to be available in scope as `jinjaToJS` and to have a method called `include` available on it (you have to implement this method yourself). This option may be useful if you want to implement your own custom wrapper.
 
-The following shows a simple example of this in practice.
-```js
-var templates = {
-    'bar': theCompiledFnForBar,
-    'foo': theCompiledFnForFoo
-};
-
-function getTemplate(name) {
-    return templates[name.replace(/\.jinja$/, '')];
-}
-
-function render(name, context) {
-    context.include = getTemplate;
-    return getTemplate(name)(context);
-}
-
-render('foo');
-```
+**AMD, CommonJS, and ES6**: For these module types the respective import mechanism will be used. For `commonjs` and `es6` module formats imports will be relative in respect to the current template, and for `amd` they will be left "as is" with `--include-prefix` added to the beginning. For all module formats there will be no extension unless you specify one using `--include-ext`.
 
 #### Template Inheritance [(Jinja Docs)](http://jinja.pocoo.org/docs/dev/templates/#template-inheritance)
 
 Template inheritance is supported, including the `{{ super() }}` function. The name of the template to be extended from must be a string literal as it needs to be loaded at compile time.
 
-**Parent**
+**parent.jinja**
 ```jinja
 {% block content %}
     The default content.
 {% endblock
 ```
 
-**Child**
+**child.jinja**
 ```jinja
+{% extends 'parent.jinja' %}
 {% block content %}
     {{ super() }}
     Additional content.
