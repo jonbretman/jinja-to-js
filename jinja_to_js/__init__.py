@@ -80,7 +80,7 @@ JS_MODULE_FORMATS = {
 # This string has to double all the '{' and '}' due to Python's string formatting.
 # See - https://docs.python.org/2/library/string.html#formatstrings
 TEMPLATE_WRAPPER = """
-function template(context) {{
+function {function_name}(context) {{
     var __result = "";
     var __tmp;
     var __runtime = jinjaToJS.runtime;
@@ -159,24 +159,42 @@ def temp_var_names_generator():
 class JinjaToJS(object):
 
     def __init__(self,
-                 environment=None,
-                 template_root=None,
-                 template_name=None,
-                 template_string=None,
+                 template_root,
+                 template_name,
                  js_module_format=None,
                  runtime_path='jinja-to-js',
                  include_prefix='',
                  include_ext='',
                  child_blocks=None,
                  dependencies=None):
+        """
+        Args:
+            template_root (str): The path to where templates should be loaded from.
+            template_name (str): The name of the template to compile (relative to `template_root`).
+            js_module_format (str, optional): The JavaScript module format to use.
+                                              One of ('amd', 'commonjs', 'es6')
+            runtime_path (str, optional): If `js_module_format` is specified then the JavaScript
+                                          runtime will be imported using the appropriate method.
+                                          It defaults to assuming it will be imported from
+                                          `node_modules` but you can change it using this option.
+            include_prefix (str, optional): If using the `amd` module format you can use this option
+                                            to add a prefix to every include path as AMD imports are
+                                            generally relative to the main file, not the module
+                                            importing.
+            include_ext (str, optional): By default any includes will be references without an
+                                         extension, as neither AMD, commonJS or ES6 require the
+                                         '.js' extension. If you want to use an extension, say
+                                         '.template' then set this option to a string including
+                                         the leading '.'
+            child_blocks (dict, optional): Used internally when handling templates that extend
+                                           other templates.
+            dependencies (list of tuple, optional): Used internally when handling templates that
+                                                    extend other templates.
+        """
 
-        if template_root is None:
-            template_root = os.getcwd()
-
-        self.environment = environment or Environment(loader=FileSystemLoader(template_root),
-                                                      autoescape=True,
-                                                      extensions=['jinja2.ext.with_',
-                                                                  'jinja2.ext.autoescape'])
+        self.environment = Environment(loader=FileSystemLoader(template_root),
+                                       autoescape=True,
+                                       extensions=['jinja2.ext.with_', 'jinja2.ext.autoescape'])
         self.output = six.StringIO()
         self.stored_names = set()
         self.temp_var_names = temp_var_names_generator()
@@ -188,19 +206,26 @@ class JinjaToJS(object):
         self.runtime_path = runtime_path
         self.include_prefix = include_prefix
         self.include_ext = include_ext
+        self.template_root = template_root
         self.template_name = template_name
+
+        # The name of the JavaScript function that will output this template. By using a named
+        # function the template can call itself which is required to support recursive includes.
+        self.js_function_name = 'template' + ''.join(
+            x.title() for x in re.split(r'[^\w]|_', path.splitext(self.template_name)[0])
+        )
 
         self.context_name = 'context'
 
         self.dependencies.append((self.runtime_path, 'jinjaToJS'))
 
-        if self.template_name is not None:
-            template_string, _, _ = self.environment.loader.get_source(
-                self.environment, self.template_name
-            )
+        template_string, template_path, _ = self.environment.loader.get_source(
+            self.environment, self.template_name
+        )
 
-        if not template_string:
-            raise ValueError('Either a template_name or template_string must be provided.')
+        # It is assumed that this will be the absolute path to the template. It is used to work out
+        # related paths for inclues.
+        self.template_path = template_path
 
         if self.js_module_format not in JS_MODULE_FORMATS.keys():
             raise ValueError(
@@ -216,8 +241,17 @@ class JinjaToJS(object):
             pass
 
     def get_output(self):
+        """
+        Returns the generated JavaScript code.
+
+        Returns:
+            str
+        """
         # generate the JS function string
-        template_function = TEMPLATE_WRAPPER.format(template_code=self.output.getvalue()).strip()
+        template_function = TEMPLATE_WRAPPER.format(
+            function_name=self.js_function_name,
+            template_code=self.output.getvalue()
+        ).strip()
 
         # get the correct module format template
         module_format = JS_MODULE_FORMATS[self.js_module_format]
@@ -262,13 +296,13 @@ class JinjaToJS(object):
                 block.super_block = b
 
         # load the parent template
-        parent_template = JinjaToJS(environment=self.environment,
+        parent_template = JinjaToJS(template_root=self.template_root,
                                     template_name=node.template.value,
-                                    js_module_format=None,
+                                    js_module_format=self.js_module_format,
                                     runtime_path=self.runtime_path,
-                                    child_blocks=self.child_blocks,
                                     include_prefix=self.include_prefix,
                                     include_ext=self.include_ext,
+                                    child_blocks=self.child_blocks,
                                     dependencies=self.dependencies)
 
         # add the parent templates output to the current output
@@ -865,19 +899,26 @@ class JinjaToJS(object):
         with self._interpolation(safe=True):
             include_path = node.template.value
 
-            if self.include_prefix:
-                include_path = self.include_prefix + node.template.value
-            elif self.js_module_format in ('es6', 'commonjs',) and self.template_name:
-                include_path = os.path.relpath(
-                    node.template.value, os.path.dirname(self.template_name)
-                )
-                if not include_path.startswith('.'):
-                    include_path = './' + include_path
+            if include_path == self.template_name:
+                # template is including itself
+                include_var_name = self.js_function_name
+            else:
+                if self.include_prefix:
+                    include_path = self.include_prefix + node.template.value
+                elif self.js_module_format in ('es6', 'commonjs',) and self.template_name:
+                    _, absolute_include_path, _ = self.environment.loader.get_source(
+                        self.environment, node.template.value
+                    )
+                    include_path = os.path.relpath(
+                        absolute_include_path, os.path.dirname(self.template_path)
+                    )
+                    if not include_path.startswith('.'):
+                        include_path = './' + include_path
 
-            include_path = path.splitext(include_path)[0] + self.include_ext
-            include_var_name = next(self.temp_var_names)
+                include_path = path.splitext(include_path)[0] + self.include_ext
+                include_var_name = next(self.temp_var_names)
 
-            self.dependencies.append((include_path, include_var_name))
+                self.dependencies.append((include_path, include_var_name))
 
             if self.js_module_format is None:
                 self.output.write('jinjaToJS.include("')

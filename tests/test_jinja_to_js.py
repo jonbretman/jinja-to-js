@@ -12,12 +12,12 @@ from os.path import abspath, dirname, join
 
 from jinja2 import nodes
 from jinja2.environment import Environment
+from jinja2.exceptions import TemplateNotFound
 from jinja2.loaders import FileSystemLoader
 
 import pytest
 
 from jinja_to_js import JinjaToJS, is_method_call
-
 
 if "check_output" not in dir(subprocess):
     def check_output(*popenargs, **kwargs):
@@ -55,7 +55,9 @@ class Tests(unittest.TestCase):
 
     def setUp(self):
         self.loader = FileSystemLoader(self.TEMPLATE_PATH)
-        self.env = Environment(loader=self.loader, autoescape=True, extensions=['jinja2.ext.with_'])
+        self.env = Environment(loader=self.loader,
+                               autoescape=True,
+                               extensions=['jinja2.ext.with_', 'jinja2.ext.autoescape'])
         self.temp_dir = tempfile.mkdtemp()
 
     def tearDown(self):
@@ -63,10 +65,8 @@ class Tests(unittest.TestCase):
 
     def test_constructor_exceptions(self):
 
-        with pytest.raises(ValueError) as e:
-            JinjaToJS()
-
-        assert str(e.value) == 'Either a template_name or template_string must be provided.'
+        with pytest.raises(TemplateNotFound):
+            JinjaToJS(template_root=self.TEMPLATE_PATH, template_name='does/not/exist.jinja')
 
     def test_is_method_call(self):
         node = self.env.parse('{{ foo() }}').find(nodes.Call)
@@ -90,7 +90,8 @@ class Tests(unittest.TestCase):
         assert is_method_call(node, 'bar') is True
 
     def test_exception_raised_for_unknown_node(self):
-        compiler = JinjaToJS(template_string='hello')
+        compiler = JinjaToJS(template_root=self.TEMPLATE_PATH,
+                             template_name='if.jinja')
 
         class FakeNode(object):
             pass
@@ -104,24 +105,19 @@ class Tests(unittest.TestCase):
 
     def test_exception_raised_for_unknown_test(self):
         with pytest.raises(Exception) as e:
-            JinjaToJS(template_string='{% if foo is someunknowntest %}{% endif %}')
+            JinjaToJS(template_root=self.TEMPLATE_PATH, template_name='unsupported_test.jinja')
         assert str(e.value) == 'Unsupported test: someunknowntest'
 
     def test_exception_raised_for_unknown_filter(self):
         with pytest.raises(Exception) as e:
-            JinjaToJS(template_string='{{ something|somefilter() }}')
+            JinjaToJS(template_root=self.TEMPLATE_PATH, template_name='unsupported_filter.jinja')
         assert str(e.value) == 'Unsupported filter: somefilter'
 
     def test_super_called_outside_of_block(self):
         with pytest.raises(Exception) as e:
-            JinjaToJS(template_string='{% block foo %}{{ super() }}{% endblock %}')
+            JinjaToJS(template_root=self.TEMPLATE_PATH,
+                      template_name='super_called_outside_of_block.jinja')
         assert str(e.value) == 'super() called outside of a block with a parent.'
-
-    def test_call_node(self):
-        JinjaToJS(template_string='{{ foo() }}').get_output() == '<%- context.foo(); %>'
-        JinjaToJS(template_string='{{ foo(1,2,3) }}').get_output() == '<%- context.foo(1,2,3); %>'
-        JinjaToJS(template_string='{{ foo(a,b,c) }}').get_output() == '<%- context.foo(a,b,c); %>'
-        JinjaToJS(template_string='{{ foo.bar() }}').get_output() == '<%- context.foo.bar(); %>'
 
     def test_if(self):
         self._run_test('if.jinja', foo=False, bar=True)
@@ -270,7 +266,9 @@ class Tests(unittest.TestCase):
 
     def test_include(self):
         self._run_test('include.jinja',
-                       additional=['includes/name.jinja'],
+                       additional=['includes/name.jinja',
+                                   'includes/quiet_name.jinja',
+                                   'includes/nested/loud_name.jinja'],
                        the_beatles=['John', 'Paul', 'George', 'Ringo'])
 
     def test_math(self):
@@ -300,7 +298,7 @@ class Tests(unittest.TestCase):
     def test_slice_with_step_raises(self):
 
         with pytest.raises(Exception) as e:
-            JinjaToJS(template_string='{% for name in names[0:5:2] %}{{ name }}{% endfor %}')
+            JinjaToJS(template_root=self.TEMPLATE_PATH, template_name='slice_with_step.jinja')
 
         assert str(e.value) == 'The step argument is not supported when slicing.'
 
@@ -311,6 +309,10 @@ class Tests(unittest.TestCase):
     def test_inline_if(self):
         self._run_test('inline_if.jinja',
                        truthy=True, falsey=False, var_1='1', var_2='2', foo=dict(bar=dict(baz=1)))
+
+    def test_recursive_include(self):
+        self._run_test('recursive_include.jinja',
+                       data=dict(value=1, child=dict(value=2, child=dict(value=3))))
 
     def _run_test(self, name, additional=None, **kwargs):
 
@@ -351,10 +353,9 @@ class Tests(unittest.TestCase):
 
     def _compile_js_template(self, name):
         js_module = JinjaToJS(
-            self.env,
+            template_root=self.TEMPLATE_PATH,
             template_name=name,
             js_module_format='commonjs',
-            include_prefix=self.temp_dir + '/',
             runtime_path=abspath('jinja-to-js-runtime.js')
         ).get_output()
 

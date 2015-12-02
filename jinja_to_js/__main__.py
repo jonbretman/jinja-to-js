@@ -1,28 +1,44 @@
 from __future__ import absolute_import, unicode_literals
-import os
+
 import sys
+
 import argparse
 
 from . import JinjaToJS
 
 
-def main():
+DESCRIPTION = """
+Convert Jinja templates into JavaScript functions.
+--------------------------------------------------
 
-    args = sys.argv[1:]
+Three different JavaScript modules formats are supported:
 
-    parser = argparse.ArgumentParser(usage='python -m jinja_to_js [options]')
+  Global: the output will be a named function.
+  AMD: the output will be an AMD module
+  ES6: the output will be an ES6 module with a default export.
+"""
+
+
+def get_arg_parser():
+
+    parser = argparse.ArgumentParser(description=DESCRIPTION,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument(
-        "-f", "--file", nargs='?',
-        help="Specifies the input file relative to --template-root. "
-             "If not specific will default to stdin.",
-        default=None, dest="template_name"
+        "template_root",
+        help="Specifies the root directory where all templates should be loaded from."
+    )
+
+    parser.add_argument(
+        "template_name",
+        help="Specifies the input file (relative to the template root)."
     )
 
     parser.add_argument(
         "-o", "--output", nargs='?', type=argparse.FileType('w'),
         help="Specifies the output file.  The default is stdout.",
-        default=sys.stdout, dest="outfile"
+        default=sys.stdout,
+        dest="outfile"
     )
 
     parser.add_argument(
@@ -39,13 +55,6 @@ def main():
     )
 
     parser.add_argument(
-        "-i", "--include-ext", nargs='?',
-        help="Specifies the extension to use for included templates.",
-        default='',
-        dest="include_ext"
-    )
-
-    parser.add_argument(
         "-p", "--include-prefix", nargs='?',
         help="Specifies the prefix to use for included templates.",
         default='',
@@ -53,25 +62,26 @@ def main():
     )
 
     parser.add_argument(
-        "-t", "--template-root", nargs='?',
-        help="Specifies the root directory where all templates should be loaded from.",
-        default=os.getcwd(),
-        dest="template_root"
+        "-i", "--include-ext", nargs='?',
+        help="Specifies the extension to use for included templates.",
+        default='',
+        dest="include_ext"
     )
 
-    options = parser.parse_args(args)
+    return parser
 
-    template_string = None
-    if options.template_name is None:
-        template_string = sys.stdin.read()
 
-    compiler = JinjaToJS(template_name=options.template_name,
-                         template_string=template_string,
-                         template_root=options.template_root,
-                         js_module_format=options.js_module_format,
-                         runtime_path=options.runtime_path,
-                         include_ext=options.include_ext,
-                         include_prefix=options.include_prefix)
+def get_init_kwargs(options):
+    kwargs = {}
+    for key, value in vars(options).items():
+        if key != 'outfile':
+            kwargs[key] = value
+    return kwargs
 
+
+def main():
+    parser = get_arg_parser()
+    options = parser.parse_args()
+    compiler = JinjaToJS(**get_init_kwargs(options))
     options.outfile.write(compiler.get_output())
     return 0
