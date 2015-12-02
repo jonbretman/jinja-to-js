@@ -1,6 +1,6 @@
 {
   "name": "jinja-to-js",
-  "version": "2.0.2",
+  "version": "3.0.0",
   "description": "[![Build Status](https://travis-ci.org/jonbretman/jinja-to-js.svg?branch=master)](https://travis-ci.org/jonbretman/jinja-to-js)",
   "main": "jinja-to-js-runtime.js",
   "repository": {
