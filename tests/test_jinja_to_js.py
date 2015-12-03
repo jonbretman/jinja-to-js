@@ -314,6 +314,12 @@ class Tests(unittest.TestCase):
         self._run_test('recursive_include.jinja',
                        data=dict(value=1, child=dict(value=2, child=dict(value=3))))
 
+    def test_include_deduping(self):
+        self._run_test('include_deduping.jinja',
+                       additional=['includes/name.jinja',
+                                   'includes/quiet_name.jinja',
+                                   'includes/nested/loud_name.jinja'],)
+
     def _run_test(self, name, additional=None, **kwargs):
 
         # first we'll render the jinja template

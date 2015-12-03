@@ -217,7 +217,7 @@ class JinjaToJS(object):
 
         self.context_name = 'context'
 
-        self.dependencies.append((self.runtime_path, 'jinjaToJS'))
+        self._add_dependency(self.runtime_path, 'jinjaToJS')
 
         template_string, template_path, _ = self.environment.loader.get_source(
             self.environment, self.template_name
@@ -256,15 +256,40 @@ class JinjaToJS(object):
         # get the correct module format template
         module_format = JS_MODULE_FORMATS[self.js_module_format]
 
-        seen_deps = set()
-        unique_deps = []
-        for dep_path, dep_name in self.dependencies:
-            if dep_path not in seen_deps:
-                unique_deps.append((dep_path, dep_name))
-                seen_deps.add(dep_path)
-
         # generate the module code
-        return module_format(unique_deps, template_function)
+        return module_format(self.dependencies, template_function)
+
+    def _get_depencency_var_name(self, dependency):
+        """
+        Returns the variable name assigned to the given dependency or None if the dependency has
+        not yet been registered.
+
+        Args:
+            dependency (str): Thet dependency that needs to be imported.
+
+        Returns:
+            str or None
+        """
+        for dep_path, var_name in self.dependencies:
+            if dep_path == dependency:
+                return var_name
+
+    def _add_dependency(self, dependency, var_name=None):
+        """
+        Adds the given dependency and returns the variable name to use to access it. If `var_name`
+        is not given then a random one will be created.
+
+        Args:
+            dependency (str):
+            var_name (str, optional):
+
+        Returns:
+            str
+        """
+        if var_name is None:
+            var_name = next(self.temp_var_names)
+        self.dependencies.append((dependency, var_name))
+        return var_name
 
     def _process_node(self, node, **kwargs):
         node_name = node.__class__.__name__.lower()
@@ -916,9 +941,10 @@ class JinjaToJS(object):
                         include_path = './' + include_path
 
                 include_path = path.splitext(include_path)[0] + self.include_ext
-                include_var_name = next(self.temp_var_names)
+                include_var_name = self._get_depencency_var_name(include_path)
 
-                self.dependencies.append((include_path, include_var_name))
+                if not include_var_name:
+                    include_var_name = self._add_dependency(include_path)
 
             if self.js_module_format is None:
                 self.output.write('jinjaToJS.include("')
