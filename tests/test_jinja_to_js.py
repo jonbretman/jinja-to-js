@@ -320,6 +320,14 @@ class Tests(unittest.TestCase):
                                    'includes/quiet_name.jinja',
                                    'includes/nested/loud_name.jinja'],)
 
+    def test_custom_filters(self):
+        def unicode_snowmen(value):
+            return ''.join(['☃' for x in value])
+
+        self.env.filters['unicode_snowmen'] = unicode_snowmen
+
+        self._run_test('custom_filters.jinja')
+
     def _run_test(self, name, additional=None, **kwargs):
 
         # first we'll render the jinja template
@@ -362,7 +370,8 @@ class Tests(unittest.TestCase):
             template_root=self.TEMPLATE_PATH,
             template_name=name,
             js_module_format='commonjs',
-            runtime_path=abspath('jinja-to-js-runtime.js')
+            runtime_path=abspath('jinja-to-js-runtime.js'),
+            custom_filters=['unicode_snowmen']
         ).get_output()
 
         target = self.temp_dir + '/' + os.path.splitext(name)[0] + '.js'

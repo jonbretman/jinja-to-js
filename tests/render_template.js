@@ -18,6 +18,13 @@ for (var key in data) {
     }
 }
 
+// add custom filter
+require('../jinja-to-js-runtime.js').filters.unicode_snowmen = function (value) {
+    return value.split('').map(function () {
+        return '☃';
+    }).join('');
+};
+
 process.stdout.write(require(args[2])(data));
 
 function readFile(name) {

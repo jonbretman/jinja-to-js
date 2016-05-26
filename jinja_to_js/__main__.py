@@ -68,6 +68,13 @@ def get_arg_parser():
         dest="include_ext"
     )
 
+    parser.add_argument(
+        "-f", "--filters", nargs='*',
+        help="Specifies custom filters to be allowed.",
+        default='',
+        dest="custom_filters"
+    )
+
     return parser
 
 
