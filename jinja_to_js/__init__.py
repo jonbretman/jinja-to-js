@@ -166,7 +166,8 @@ class JinjaToJS(object):
                  include_prefix='',
                  include_ext='',
                  child_blocks=None,
-                 dependencies=None):
+                 dependencies=None,
+                 custom_filters=None):
         """
         Args:
             template_root (str): The path to where templates should be loaded from.
@@ -190,6 +191,10 @@ class JinjaToJS(object):
                                            other templates.
             dependencies (list of tuple, optional): Used internally when handling templates that
                                                     extend other templates.
+            custom_filters (list of str, optional): List of custom filters which should be allowed.
+                                                    These may be filters supported by Jinja but not
+                                                    supported by jinja-to-js. These filters MUST be
+                                                    registered with the jinja-to-js JS runtime.
         """
 
         self.environment = Environment(loader=FileSystemLoader(template_root),
@@ -208,6 +213,7 @@ class JinjaToJS(object):
         self.include_ext = include_ext
         self.template_root = template_root
         self.template_name = template_name
+        self.custom_filters = custom_filters or []
 
         # The name of the JavaScript function that will output this template. By using a named
         # function the template can call itself which is required to support recursive includes.
@@ -639,6 +645,15 @@ class JinjaToJS(object):
         method_name = getattr(self, '_process_filter_%s' % node.name, None)
         if callable(method_name):
             method_name(node, **kwargs)
+        elif node.name in self.custom_filters:
+            with self._interpolation(safe=True):
+                with self._python_bool_wrapper(**kwargs) as new_kwargs:
+                    self.output.write('__filters.%s(' % node.name)
+                    self._process_node(node.node, **new_kwargs)
+                    if getattr(node, 'args', None):
+                        self.output.write(',')
+                        self._process_args(node, **new_kwargs)
+                    self.output.write(')')
         else:
             raise Exception('Unsupported filter: %s' % node.name)
 
