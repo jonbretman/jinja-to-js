@@ -1,7 +1,6 @@
 language: python
 
 python:
-  - 2.6
   - 2.7
   - 3.3
   - 3.4
@@ -21,7 +20,6 @@ install:
     - "npm install && npm run-script lint"
 
 script:
-    - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then tox -e py26,pep8; fi
     - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then tox -e py27,pep8; fi
     - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then tox -e py33,py3pep8; fi
     - if [[ $TRAVIS_PYTHON_VERSION == '3.4' ]]; then tox -e py34,py3pep8; fi

@@ -5,8 +5,8 @@
     } else if (typeof exports === 'object' && typeof exports.nodeName !== 'string') {
         factory(exports);
     } else {
-        root.jinjaToJS = {};
-        factory(root.jinjaToJS);
+        global.jinjaToJS = {};
+        factory(global.jinjaToJS);
     }
 
 }(this, function (exports) {
@@ -86,7 +86,7 @@
             value = parseInt(value, 10);
             return isNaN(value) ? defaultValue : value;
         },
-        
+
         slice: function (value, slices, fillWith) {
             var hasFillWith = fillWith != null;
             var length = value.length;
@@ -94,48 +94,48 @@
             var slicesWithExtra = length % slices;
             var offset = 0;
             var result = [];
-    
+
             for (var i = 0; i < slices; i++) {
                 var start = offset + i * itemsPerSlice;
-    
+
                 if (i < slicesWithExtra) {
                     offset += 1;
                 }
-    
+
                 var end = offset + (i + 1) * itemsPerSlice;
                 var tmp = value.slice(start, end);
-    
+
                 if (hasFillWith && i >= slicesWithExtra) {
                     tmp.push(fillWith);
                 }
-    
+
                 result.push(tmp);
             }
-    
+
             return result;
         },
-        
+
         title: function (s) {
             s = s + '';
             return s.split(' ').map(function (word) {
                 return word[0].toUpperCase() + word.substring(1).toLowerCase();
             }).join(' ');
         },
-        
+
         truncate: function (s, length, killwords, end) {
             s = s + '';
             length = length === undefined ? 255 : length;
             killwords = killwords === undefined ? false : killwords;
             end = end === undefined ? '...' : end;
-    
+
             var endLength = end.length;
-    
+
             if (s.length <= length) {
                 return s;
             } else if (killwords) {
                 return s.substring(0, length - endLength) + end;
             }
-    
+
             s = s.substring(0, length - endLength).split(' ');
             s.pop();
             s = s.join(' ');
@@ -144,7 +144,7 @@
             }
             return s + end;
         },
-        
+
         first: function (obj) {
             return Array.isArray(obj) ? obj[0] : null;
         },
@@ -166,7 +166,7 @@
         }
 
     };
-    
+
     var runtime = exports.runtime = {
 
         type: function (o) {
@@ -202,53 +202,53 @@
                 fn(obj[k], k);
             });
         },
-        
+
         isEqual: function (objA, objB) {
             var typeA;
             var keysA;
             var i;
-    
+
             if (objA === objB) {
                 return true;
             }
-    
+
             typeA = runtime.type(objA);
-    
+
             if (typeA !== runtime.type(objB)) {
                 return false;
             }
-    
+
             if (typeA === 'Array') {
-    
+
                 if (objA.length !== objB.length) {
                     return false;
                 }
-    
+
                 for (i = 0; i < objA.length; i++) {
                     if (!runtime.isEqual(objA[i], objB[i])) {
                         return false;
                     }
                 }
-    
+
                 return true;
             }
-    
+
             if (runtime.type(objA) === 'Object') {
                 keysA = Object.keys(objA);
-    
+
                 if (keysA.length !== Object.keys(objB).length) {
                     return false;
                 }
-    
+
                 for (i = 0; i < keysA.length; i++) {
                     if (!runtime.isEqual(objA[keysA[i]], objB[keysA[i]])) {
                         return false;
                     }
                 }
-    
+
                 return true;
             }
-    
+
             return false;
         },
 
