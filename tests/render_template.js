@@ -25,6 +25,11 @@ require('../jinja-to-js-runtime.js').filters.unicode_snowmen = function (value) 
     }).join('');
 };
 
+// add custom global
+require('../jinja-to-js-runtime.js').globals.convert_to_uppercase = function (val) {
+    return val.toUpperCase();
+};
+
 process.stdout.write(require(args[2])(data));
 
 function readFile(name) {

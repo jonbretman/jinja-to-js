@@ -85,6 +85,8 @@ function {function_name}(context) {{
     var __tmp;
     var __runtime = jinjaToJS.runtime;
     var __filters = jinjaToJS.filters;
+    var __globals = jinjaToJS.globals;
+    context = Object.assign({{}}, __globals, context);
     {template_code}
     return __result;
 }}
@@ -552,7 +554,7 @@ class JinjaToJS(object):
         for n in node.body:
             self._process_node(n, **kwargs)
 
-        if not node.else_:
+        if not node.else_ and not node.elif_:
             # no else - just close the if
             with self._execution():
                 self.output.write('}')
@@ -564,9 +566,9 @@ class JinjaToJS(object):
                 self.output.write(' else ')
 
                 # check for elif
-                if isinstance(node.else_[0], nodes.If):
-                    for n in node.else_:
-                        self._process_node(n, execute_end=execute_end, **kwargs)
+                for n in node.elif_:
+                    self._process_node(n, execute_end=execute_end, **kwargs)
+                if node.elif_:
                     return
 
                 # open up the body
@@ -788,7 +790,7 @@ class JinjaToJS(object):
             self._process_node(node.node, **kwargs)
             self.output.write(';')
 
-    def _process_scope(self, node, **kwargs):
+    def _process_with(self, node, **kwargs):
 
         # keep a copy of the stored names before the scope
         previous_stored_names = self.stored_names.copy()
