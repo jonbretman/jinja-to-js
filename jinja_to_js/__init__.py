@@ -80,13 +80,13 @@ JS_MODULE_FORMATS = {
 # This string has to double all the '{' and '}' due to Python's string formatting.
 # See - https://docs.python.org/2/library/string.html#formatstrings
 TEMPLATE_WRAPPER = """
-function {function_name}(context) {{
+function {function_name}(ctx) {{
     var __result = "";
     var __tmp;
     var __runtime = jinjaToJS.runtime;
     var __filters = jinjaToJS.filters;
     var __globals = jinjaToJS.globals;
-    context = Object.assign({{}}, __globals, context);
+    var context = jinjaToJS.createContext(ctx);
     {template_code}
     return __result;
 }}
