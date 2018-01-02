@@ -139,9 +139,6 @@
             s = s.substring(0, length - endLength).split(' ');
             s.pop();
             s = s.join(' ');
-            if (s.length < length) {
-                s += ' ';
-            }
             return s + end;
         },
 
@@ -166,6 +163,9 @@
         }
 
     };
+
+    // You may override this to provide custom methods within the templates
+    exports.globals = {};
 
     var runtime = exports.runtime = {
 

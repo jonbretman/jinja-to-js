@@ -328,6 +328,14 @@ class Tests(unittest.TestCase):
 
         self._run_test('custom_filters.jinja')
 
+    def test_custom_global(self):
+        def convert_to_uppercase(value):
+            return value.upper()
+
+        self.env.globals['convert_to_uppercase'] = convert_to_uppercase
+
+        self._run_test('custom_global.jinja')
+
     def _run_test(self, name, additional=None, **kwargs):
 
         # first we'll render the jinja template
