@@ -22,9 +22,44 @@
         }[match];
     }
 
+    function objectAssignPolyfill(target, varArgs) { // .length of function is 2
+        'use strict';
+        if (target == null) { // TypeError if undefined or null
+            throw new TypeError('Cannot convert undefined or null to object');
+        }
+
+        var to = Object(target);
+
+        for (var index = 1; index < arguments.length; index++) {
+            var nextSource = arguments[index];
+
+            if (nextSource == null) { // Skip over if undefined or null
+                continue;
+            }
+
+            for (var nextKey in nextSource) {
+                // Avoid bugs when hasOwnProperty is shadowed
+                if (Object.prototype.hasOwnProperty.call(nextSource, nextKey)) {
+                    to[nextKey] = nextSource[nextKey];
+                }
+            }
+        }
+        return to;
+    }
+
+    if (typeof Object.assign != 'function') {
+        var objectAssign = objectAssignPolyfill;
+    } else {
+        var objectAssign = Object.assign;
+    }
+
     var ESCAPE_TEST_REGEX = /(?:&|<|>|"|'|`)/;
     var ESCAPE_REPLACE_REGEX = new RegExp(ESCAPE_TEST_REGEX.source, 'g');
     var OBJECT_TYPE_REGEX = /\[object (.*?)]/;
+
+    exports.createContext = function (context) {
+        return objectAssign({}, exports.globals, context);
+    };
 
     exports.filters = {
 
