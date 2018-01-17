@@ -568,8 +568,9 @@ class JinjaToJS(object):
                 # check for elif
                 for n in node.elif_:
                     self._process_node(n, execute_end=execute_end, **kwargs)
-                if node.elif_:
-                    return
+
+                if node.elif_ and node.else_:
+                    self.output.write(' else ')
 
                 # open up the body
                 self.output.write('{')
