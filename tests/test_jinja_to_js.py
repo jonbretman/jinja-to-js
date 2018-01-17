@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals, print_function
 import json
 import os
 import shutil
@@ -373,8 +373,8 @@ class Tests(unittest.TestCase):
             js_result = js_result.decode('utf8')
 
         if jinja_result != js_result:
-            print "Generated Javascript Template:"
-            print open(path).read()
+            print("Generated Javascript Template:")
+            print(open(path).read())
 
         # check the jinja result and the javascript result are the same
         assert jinja_result == js_result
