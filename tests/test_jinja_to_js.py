@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals, print_function
 import json
 import os
 import shutil
@@ -120,7 +120,9 @@ class Tests(unittest.TestCase):
         assert str(e.value) == 'super() called outside of a block with a parent.'
 
     def test_if(self):
-        self._run_test('if.jinja', foo=False, bar=True)
+        for foo in [True, False]:
+            for bar in [True, False]:
+                self._run_test('if.jinja', foo=foo, bar=bar)
 
     def test_interpolation(self):
         self._run_test('interpolation.jinja',
@@ -369,6 +371,10 @@ class Tests(unittest.TestCase):
 
         if isinstance(js_result, bytes):
             js_result = js_result.decode('utf8')
+
+        if jinja_result != js_result:
+            print("Generated Javascript Template:")
+            print(open(path).read())
 
         # check the jinja result and the javascript result are the same
         assert jinja_result == js_result

@@ -1,3 +1,4 @@
+
 {% if foo %}
     <div>will not be output</div>
 {% endif %}
@@ -6,17 +7,33 @@
     <p>will be output</p>
 {% endif %}
 
+If, Else test
+
 {% if foo %}
     <span>will not be output</span>
 {% else %}
     <h1>will be output</h1>
 {% endif %}
 
+If, Elif test
+
 {% if foo %}
     <h2>will not be output</h2>
 {% elif bar %}
     <h3>will be output</h3>
 {% endif %}
+
+If, Elif, Else test
+
+{% if foo %}
+    <h2>will not be output</h2>
+{% elif not bar %}
+    <h3>will not be output</h3>
+{% else %}
+    <h4>will be output</h4>
+{% endif %}
+
+Nested if test
 
 {% if foo %}
     {% if bar %}
