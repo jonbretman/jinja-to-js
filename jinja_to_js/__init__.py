@@ -796,13 +796,25 @@ class JinjaToJS(object):
         # keep a copy of the stored names before the scope
         previous_stored_names = self.stored_names.copy()
 
-        assigns = [x for x in node.body if isinstance(x, nodes.Assign)]
+        # assigns in the with tag
+        # e.g. {% with var = "something %}
+        assigns_in_tag = [nodes.Assign(t, v) for t, v in zip(node.targets, node.values)]
+
+        # assigns in the with body
+        # e.g. {% set name = 'John' %}
+        assigns_in_body = [x for x in node.body if isinstance(x, nodes.Assign)]
+
+        # remove assigns from the body
         node.body = [x for x in node.body if not isinstance(x, nodes.Assign)]
+
+        # get a list of all the assigns in this with block
+        # both on the tag, and within the body of the block
+        all_assigns = assigns_in_tag + assigns_in_body
 
         with self._execution():
             self.output.write('(function () {')
 
-        with self._scoped_variables(assigns, **kwargs):
+        with self._scoped_variables(all_assigns, **kwargs):
             for node in node.body:
                 self._process_node(node, **kwargs)
 
