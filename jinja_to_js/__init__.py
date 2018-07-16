@@ -296,7 +296,9 @@ class JinjaToJS(object):
         """
         if var_name is None:
             var_name = next(self.temp_var_names)
-        self.dependencies.append((dependency, var_name))
+        # Don't add duplicate dependencies
+        if (dependency, var_name) not in self.dependencies:
+            self.dependencies.append((dependency, var_name))
         return var_name
 
     def _process_node(self, node, **kwargs):
