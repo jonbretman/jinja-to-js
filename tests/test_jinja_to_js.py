@@ -3,6 +3,7 @@
 from __future__ import absolute_import, unicode_literals, print_function
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -340,6 +341,15 @@ class Tests(unittest.TestCase):
         self.env.globals['convert_to_uppercase'] = convert_to_uppercase
 
         self._run_test('custom_global.jinja')
+
+    def test_extends_es6(self):
+        compiler = JinjaToJS(template_root=self.TEMPLATE_PATH,
+                             template_name='extends.jinja',
+                             js_module_format='es6'
+                    )
+        output = compiler.get_output()
+        import_count = len(re.findall('import', output))
+        assert import_count == 1
 
     def _run_test(self, name, additional=None, **kwargs):
 
