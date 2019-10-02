@@ -20,6 +20,6 @@
   },
   "homepage": "https://github.com/jonbretman/jinja-to-js#readme",
   "devDependencies": {
-    "eslint": "^1.5.1"
+    "eslint": "^6.5.1"
   }
 }
